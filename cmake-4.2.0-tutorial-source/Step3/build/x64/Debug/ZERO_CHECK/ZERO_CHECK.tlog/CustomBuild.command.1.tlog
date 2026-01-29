@@ -1,0 +1,10 @@
+^C:\USERS\USUARIO\CLIONPROJECTS\GRAFICOS\CMAKE-4.2.0-TUTORIAL-SOURCE\STEP3\BUILD\CMAKEFILES\9F8D8B6F44B5E3DE2C32CAFBFED48E7F\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step3 -BC:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step3/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step3/build/Tutorial.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

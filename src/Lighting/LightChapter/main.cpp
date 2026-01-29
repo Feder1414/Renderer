@@ -1,0 +1,387 @@
+#include <format>
+#include <fstream>
+#include <iostream>
+#include "OpenGL.h"
+#include "Shader.h"
+#include "Texture.h"
+#include <vector>
+
+#include <math.h>
+#include <random>
+
+
+#include "Material.h"
+#include "Transform.h"
+#include "VertexLayout.h"
+#include "Model.h"
+#include "ModelRenderInfo.h"
+#include "Renderer.h"
+#include "Scene.h"
+#include "MouseHandler.h"
+#include "Camera.h"
+#include "RandomCoordinateGenerator.h"
+
+
+namespace WindowState
+{
+    int width = 800;
+    int height = 600;
+}
+
+namespace Time
+{
+    double time = 0.0f;
+}
+
+void OnViewportSizeChanged(GLFWwindow* window, const int width, const int height)
+{
+    glViewport(0, 0, width, height);
+    WindowState::width = width;
+    WindowState::height = height;
+}
+
+void OnErrorWindow(int error, const char* description)
+{
+    std::cout << std::format("Error al crear ventana glwf {}", description);
+}
+
+void DebugMatrix4(glm::mat4 mat4)
+{
+    for (int i = 0; i < 4; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            std::cout << i << "," << j << " " << mat4[i][j] << std::endl;
+        }
+    }
+}
+
+void processInput(GLFWwindow* window)
+{
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+    {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+}
+
+
+
+
+
+int main()
+{
+    glfwInit();
+    glfwSetErrorCallback(OnErrorWindow);
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+
+    GLFWwindow* window = glfwCreateWindow(WindowState::width, WindowState::height, "LearnOpenGL", NULL, NULL);
+    if (window == NULL)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+    }
+    glViewport(0, 0, WindowState::width, WindowState::height);
+
+    glfwSetFramebufferSizeCallback(window, OnViewportSizeChanged);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+
+    std::vector<float> cubeVertices = {
+
+        // Cara trasera
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f,
+        0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, -1.0f,
+        0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, -1.0f,
+        0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, -1.0f,
+        -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, -1.0f,
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, -1.0f,
+
+        // Cara delantera
+        -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f,
+        -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+
+        //Cara izquierda
+        -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, -1.0f, 0.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+        -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, -1.0f, 0.0f, 0.0f,
+
+        // Cara derecha
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+
+        // Cara abajo
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f, 0.0f,
+        0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, -1.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f,
+        0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, -1.0f, 0.0f,
+        -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, -1.0f, 0.0f,
+        -0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, -1.0f, 0.0f,
+
+        //Cara superior
+        -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+        -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
+
+    };
+
+    std::vector<float> cubeVerticesLight = {
+
+        // Cara trasera
+        -0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        -0.5f, 0.5f, -0.5f,
+        -0.5f, -0.5f, -0.5f,
+
+        // Cara delantera
+        -0.5f, -0.5f, 0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, -0.5f, 0.5f,
+
+        //Cara izquierda
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, -0.5f,
+        -0.5f, -0.5f, -0.5f,
+        -0.5f, -0.5f, -0.5f,
+        -0.5f, -0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
+
+        // Cara derecha
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+
+        // Cara abajo
+        -0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, -0.5f,
+        0.5f, -0.5f, 0.5f,
+        0.5f, -0.5f, 0.5f,
+        -0.5f, -0.5f, 0.5f,
+        -0.5f, -0.5f, -0.5f,
+
+        //Cara superior
+        -0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, -0.5f,
+        0.5f, 0.5f, 0.5f,
+        0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, 0.5f,
+        -0.5f, 0.5f, -0.5f,
+
+    };
+
+    std::vector<int> cubeIndices = {
+        0, 1, 2,
+        3, 4, 5,
+        6, 7, 8,
+        9, 10, 11,
+        12, 13, 14,
+        15, 16, 17,
+        18, 19, 20,
+        21, 22, 23,
+        24, 25, 26,
+        27, 28, 29,
+        30, 31, 32,
+        33, 34, 35
+
+
+    };
+
+
+    //Setear la escena ----------------------------------------------------------------
+
+
+    //Normal cube
+    std::vector<VertexAttribute> verticesLayout = {
+        {.type = VertexAttributeType::FLOAT, .attributeName = "vertexPos", .amountComponents = 3},
+        {.type = VertexAttributeType::FLOAT, .attributeName = "vertexCol", .amountComponents = 4},
+        {.type = VertexAttributeType::FLOAT, .attributeName = "uv", .amountComponents = 2},
+        {.type = VertexAttributeType::FLOAT, .attributeName = "normal", .amountComponents = 3},
+    };
+
+    VertexLayout verticesShaderLayout = VertexLayout(verticesLayout);
+
+    auto cubeModel = Model(cubeVertices, cubeIndices);
+
+    auto cubeModelLight = Model(cubeVerticesLight, cubeIndices);
+
+    std::unique_ptr<Shader> shaderLight = std::make_unique<Shader>("Shaders/vertexShader.vert",
+                                                                   "Shaders/fragmentShader.vert");
+    std::unique_ptr<Material> cubeMaterial = std::make_unique<Material>(shaderLight.get());
+    shaderLight->setPrintDebug(true);
+    std::unique_ptr<ModelRenderInfo> cube = std::make_unique<ModelRenderInfo>(
+        &cubeModel, verticesShaderLayout, cubeMaterial.get());
+
+    std::unique_ptr<Entity> cubeEntity = std::make_unique<Entity>();
+    cubeEntity->SetModelRenderInfo(std::move(cube));
+    cubeEntity->transform.m_position.z = -5;
+    cubeEntity->SetUpdate([](Entity* entity, float deltaTime)
+    {
+        entity->transform.m_position.y = sin(Time::time);
+    });
+
+    //LightCube
+    std::vector<VertexAttribute> verticesLayoutDebugLightShader = {
+        {.type = VertexAttributeType::FLOAT, .attributeName = "vertexPos", .amountComponents = 3},
+    };
+    std::unique_ptr<Shader> lightDebugShader = std::make_unique<Shader>("Shaders/lightDebug.vert",
+                                                                        "Shaders/lightDebug.frag");
+
+    std::unique_ptr<Material> lightCubeMaterial = std::make_unique<Material>(lightDebugShader.get());
+    std::unique_ptr<ModelRenderInfo> cubeLight = std::make_unique<ModelRenderInfo>(
+        &cubeModelLight, verticesLayoutDebugLightShader, lightCubeMaterial.get());
+    std::unique_ptr<Light> directionalLight = std::make_unique<Light>();
+    std::unique_ptr<Entity> directionalLightEntity = std::make_unique<Entity>();
+    directionalLightEntity->transform.m_position = glm::vec3(0.0, 1.0f, -5.0f);
+    directionalLightEntity->SetModelRenderInfo(std::move(cubeLight));
+    directionalLightEntity->AddComponent(std::move(directionalLight));
+    directionalLightEntity->SetUpdate([](Entity* entity, float deltaTime)
+    {
+        float r = 3.5f;
+        float posY = r * sin(Time::time);
+        float posZ = r * cos(Time::time) - 5.0f;
+
+        entity->transform.m_position.y = posY;
+        entity->transform.m_position.z = posZ;
+    });
+
+
+    Texture woodenContainerDiffuse = Texture();
+    woodenContainerDiffuse.LoadImageFromFile("textures/container2Diffuse.png");
+
+    Texture woodenContainerSpecular = Texture();
+    woodenContainerSpecular.LoadImageFromFile("textures/container2Specular.png");
+
+    Texture happyFace = Texture();
+    happyFace.LoadImageFromFile("textures/awesomeface.png");
+
+
+    cubeMaterial->SetUniformValue("happyFace", UniformValue{&happyFace});
+    cubeMaterial->SetProperty(MaterialPropertyEnum::Diffuse, UniformValue{&woodenContainerDiffuse});
+    cubeMaterial->SetProperty(MaterialPropertyEnum::Specular, UniformValue{&woodenContainerSpecular});
+    cubeMaterial->SetProperty(MaterialPropertyEnum::Shininess, 32);
+
+
+    std::unique_ptr<Scene> scene = std::make_unique<Scene>();
+    std::unique_ptr<Renderer> renderer = std::make_unique<Renderer>();
+
+
+    auto lightPosX = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(-10, 10);
+    auto lightPosy = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(-20, 20);
+    auto lightPosz = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(-10, 10);
+
+
+    int amountLights = 5;
+
+    for (int i = 0; i < amountLights; i++)
+    {
+        auto lightEntity = std::make_unique<Entity>();
+        auto renderInfo = std::make_unique<ModelRenderInfo>(&cubeModelLight, verticesLayoutDebugLightShader,
+                                                            lightCubeMaterial.get());
+        lightEntity->SetModelRenderInfo(std::move(renderInfo));
+        auto lightComponent = std::make_unique<Light>();
+        lightComponent->m_lightType = LightType::PointLight;
+        lightEntity->AddComponent(std::move(lightComponent));
+        lightEntity->transform.m_position = glm::vec3(lightPosX->GetRandom(), lightPosy->GetRandom(),
+                                                     lightPosz->GetRandom());
+
+        scene->AddEntity(std::move(lightEntity));
+    }
+
+    scene->AddEntity(std::move(cubeEntity));
+    renderer->SetScene(scene.get());
+    renderer->SetResolution(WindowState::width, WindowState::height);
+    renderer->DebugRenderLights(true);
+
+
+    MouseHandler mouseHandler = MouseHandler(WindowState::width / 2.0f, WindowState::width / 2.0f);
+
+    std::unique_ptr<Camera> camera = std::make_unique<Camera>();
+
+    glfwSetWindowUserPointer(window, camera.get());
+    glfwSetCursorPosCallback(window, Camera::CalculateForwardVector);
+    glfwSetScrollCallback(window, Camera::UpdateFOV);
+
+    camera->SetMouseHandler(&mouseHandler);
+
+    scene->AddCamera(std::move(camera));
+    scene->AddEntity(std::move(directionalLightEntity));
+
+
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_DEPTH_TEST);
+
+    float lastTime = glfwGetTime();
+
+    Time::time = lastTime;
+
+
+    while (!glfwWindowShouldClose(window))
+    {
+        glfwPollEvents();
+        processInput(window);
+
+        glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        float currTime = glfwGetTime();
+        Time::time = currTime;
+        float deltaTime = currTime - lastTime;
+        lastTime = currTime;
+        auto cameraActive = scene->GetActiveCamera();
+
+        const auto& sceneEntities = scene->GetEntities();
+
+        for (auto& entity : sceneEntities)
+        {
+            entity->Update(deltaTime);
+        }
+
+        cameraActive->ProcessMovement(window, deltaTime);
+        renderer->RenderScene();
+
+
+        glfwSwapBuffers(window);
+    }
+
+    glfwTerminate();
+
+    return 0;
+}
