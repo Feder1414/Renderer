@@ -1,4 +1,0 @@
-C:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step1/build/CMakeFiles/Tutorial.dir
-C:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step1/build/CMakeFiles/MathFunctions.dir
-C:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step1/build/CMakeFiles/ALL_BUILD.dir
-C:/Users/USUARIO/CLionProjects/graficos/cmake-4.2.0-tutorial-source/Step1/build/CMakeFiles/ZERO_CHECK.dir

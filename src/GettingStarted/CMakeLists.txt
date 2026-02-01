@@ -1,5 +1,0 @@
-add_subdirectory(ShadersChapter)
-add_subdirectory(TexturesChapter)
-add_subdirectory(TransformationsChapter)
-add_subdirectory(CameraChapter)
-

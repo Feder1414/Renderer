@@ -1,5 +1,0 @@
-add_subdirectory(glad)
-add_subdirectory(glwf)
-add_subdirectory(stb_image)
-add_subdirectory(glm/src/glm)
-add_subdirectory(uuid)
