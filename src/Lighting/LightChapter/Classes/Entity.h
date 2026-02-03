@@ -48,6 +48,11 @@ class Entity
     glm::vec3 m_localRot = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 m_localScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
+    glm::vec3 m_worldPos = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 m_worldRot = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 m_worldScale = glm::vec3(0.0f, 0.0f, 0.0f);
+
+
     glm::mat4 m_localMat = glm::mat4(1.0f);
     glm::mat4 m_worldMat = glm::mat4(1.0f);
 
@@ -89,7 +94,7 @@ public:
     {
         if (!m_parent)
         {
-            m_localPos = globalPos;
+            SetLocalPos(glm::vec3(globalPos));
             return;
         }
         auto localPos = inverse(m_parent->GetWorldMat()) * glm::vec4(globalPos, 1.0f);
@@ -163,11 +168,19 @@ public:
     }
 
 
+    glm::vec3 GetWorldPos() const { return m_worldPos; }
+
     glm::mat4 GetLocalMat() const { return m_localMat; }
 
     glm::mat4 GetWorldMat() const { return m_worldMat; }
 
     glm::mat3 GetNormalMatrix() const { return m_normMat; }
+
+    glm::vec3 GetRight() const { return m_right; }
+
+    glm::vec3 GetUp() const { return m_up; }
+
+    glm::vec3 GetForward() const { return m_forward; }
 
 
     ModelRenderInfo* GetModelRenderInfo() const;

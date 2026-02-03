@@ -16,5 +16,9 @@ void Scene::AddEntity(std::unique_ptr<Entity> entity)
     {
         m_lights.push_back(entity.get());
     }
+    if (entity->GetComponent<Camera>())
+    {
+        m_cameras.push_back(entity.get());
+    }
     m_entities.push_back(std::move(entity));
 }

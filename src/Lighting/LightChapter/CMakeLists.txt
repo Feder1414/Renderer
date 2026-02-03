@@ -57,6 +57,8 @@ target_link_libraries(LightChapter PRIVATE
         assimp
 )
 
+target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL)
+
 copyDirectories(LightChapter textures Shaders)
 
 #

@@ -41,6 +41,7 @@ void Camera::ProcessMovement(GLFWwindow* window, float deltaTime)
 glm::mat4 Camera::GetViewMatrix() const
 {
     return glm::lookAt(m_position, m_position + m_forward, m_up);
+
 }
 
 void Camera::CalculateForwardVector(GLFWwindow* window, double posx, double posy)
@@ -60,6 +61,7 @@ void Camera::CalculateForwardVector(GLFWwindow* window, double posx, double posy
     {
         cam->pitch = 89;
     }
+    cam->
 
     cam->m_forward.x = cos(glm::radians(cam->yaw)) * cos(glm::radians(cam->pitch));
     cam->m_forward.y = sin(glm::radians(cam->pitch));

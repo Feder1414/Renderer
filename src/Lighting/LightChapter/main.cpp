@@ -1,3 +1,4 @@
+
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -227,9 +228,11 @@ int main()
     std::unique_ptr<Shader> lightDebugShader = std::make_unique<Shader>("Shaders/lightDebug.vert",
                                                                         "Shaders/lightDebug.frag");
 
-    std::unique_ptr<Material> lightCubeMaterial = std::make_unique<Material>();
+
+    std::shared_ptr<Material> lightCubeMaterial = std::make_shared<Material>();
+    auto cubeModelLight = CreateCubeMesh(lightCubeMaterial, verticesShaderLayout);
     lightCubeMaterial->SetShader(lightDebugShader.get());
-    std::unique_ptr<ModelRenderInfo> cubeLight = std::make_unique<ModelRenderInfo>(cubeModel);
+    std::unique_ptr<ModelRenderInfo> cubeLight = std::make_unique<ModelRenderInfo>(cubeModelLight);
     std::unique_ptr<Light> spotLight = std::make_unique<Light>();
     spotLight->m_attenuationLinear = 0.09f;
     spotLight->m_attenuationQuadratic = 0.032f;
@@ -278,7 +281,7 @@ int main()
         std::mt19937, std::uniform_real_distribution<float>>>(-10, 10);
 
 
-    int amountLights = 0;
+    int amountLights = 10;
 
     for (int i = 0; i < amountLights; i++)
     {
@@ -312,6 +315,7 @@ int main()
 
     camera->SetMouseHandler(&mouseHandler);
 
+
     auto spotLighComponent = std::make_unique<Light>();
     spotLighComponent->m_lightType = LightType::SpotLight;
     spotLighComponent->SetInnerConeAngle(10.0f);
@@ -322,8 +326,7 @@ int main()
         {
             auto& activeCamera = entity->GetScene()->GetCameras()[0];
             auto spotLightComponent = entity->GetComponent<Light>();
-            auto activeCameraPos = activeCamera->GetTransform().m_position;
-            entity->SetLocalPos(activeCamera->GetTransform().m_position);
+            entity->SetLocalPos(activeCamera->GetLocalPos());
             spotLightComponent->m_direction = activeCamera->GetForward();
         }
     );
@@ -333,8 +336,13 @@ int main()
     auto dirLightEntity = std::make_unique<Entity>();
     dirLightEntity->AddComponent(std::move(dirLightComponent));
 
+    auto cameraEntity = std::make_unique<Entity>();
+    cameraEntity->AddComponent(std::move(camera));
 
-    scene->AddCamera(std::move(camera));
+    //Add camera
+    scene->AddEntity(std::move(cameraEntity));
+
+    //Add lights
     scene->AddEntity(std::move(pointLightEntity));
     scene->AddEntity(std::move(spotLightEntity));
     scene->AddEntity(std::move(dirLightEntity));
@@ -362,7 +370,7 @@ int main()
         Time::time = currTime;
         float deltaTime = currTime - lastTime;
         lastTime = currTime;
-        auto cameraActive = scene->GetActiveCamera();
+        auto cameraActive = scene->GetActiveCamera()->GetComponent<Camera>();
 
         const auto& sceneEntities = scene->GetEntities();
 

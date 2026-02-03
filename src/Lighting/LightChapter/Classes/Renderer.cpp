@@ -109,15 +109,16 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
         }
         else if (shaderProperty == ShaderBasicProperties::ProjectionTransform && !cameras.empty())
         {
-            const auto& activeCamera = cameras[0].get();
+            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto projMatrix = UniformValue{activeCamera->GetProjMatrix(m_width / m_height)};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ProjectionTransform),
                                       projMatrix);
         }
         else if (shaderProperty == ShaderBasicProperties::ViewTransform && !cameras.empty())
         {
-            const auto& activeCamera = cameras[0].get();
+            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto viewMatrix = UniformValue{activeCamera->GetViewMatrix()};
+
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ViewTransform),
                                       viewMatrix);
         }
@@ -131,7 +132,7 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
         }
         else if (shaderProperty == ShaderBasicProperties::EyePosition && !cameras.empty())
         {
-            const auto& activeCamera = cameras[0].get();
+            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto cameraPosition = UniformValue{activeCamera->GetTransform().m_position};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::EyePosition),
                                       cameraPosition);
