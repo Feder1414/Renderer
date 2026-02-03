@@ -4,6 +4,7 @@
 
 #include "Renderer.h"
 
+#include <iostream>
 #include <variant>
 
 
@@ -102,7 +103,7 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
             //Use first light as active camera. Change later
             auto activeLightEntity = lights[0];
             auto activeLight = activeLightEntity->GetComponent<Light>();
-            auto lightTransform = UniformValue{activeLight->GetEntity()->m_localTransform.GetAllTransformMatrix()};
+            auto lightTransform = UniformValue{activeLight->GetEntity()->GetWorldMat()};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::LightTransform),
                                       lightTransform);
         }
@@ -169,7 +170,7 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
         else if (shaderProperty == ShaderBasicProperties::LightPosition && !lights.empty())
         {
             auto activeLightEntity = lights[0];
-            auto lightPosition = UniformValue{activeLightEntity->m_localTransform.m_position};
+            auto lightPosition = UniformValue{activeLightEntity->GetLocalPos()};
 
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::LightPosition),
                                       lightPosition);
@@ -200,13 +201,13 @@ void Renderer::UploadPerModelProperties(Shader* shader, const ModelRenderInfo* o
 
     if (activeShaderProperties.contains(ShaderBasicProperties::ModelTransform))
     {
-        auto modelTransformMatrix = UniformValue{entity->m_localTransform.GetAllTransformMatrix()};
+        auto modelTransformMatrix = UniformValue{entity->GetWorldMat()};
         shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ModelTransform),
                                   modelTransformMatrix);
     }
     if (activeShaderProperties.contains(ShaderBasicProperties::NormalMatrix))
     {
-        auto normalMatrix = entity->m_localTransform.GetNormalMatrix();
+        auto normalMatrix = entity->GetNormalMatrix();
         auto uniformNormalMatrix = UniformValue{normalMatrix};
 
         shader->setUniformPerName(
@@ -223,18 +224,27 @@ void Renderer::UploadPerModelProperties(Shader* shader, const ModelRenderInfo* o
 
 void Renderer::DrawModel(const ModelRenderInfo* renderInfo)
 {
-    auto objectMaterial = renderInfo->GetMaterial();
-    auto objectShader = objectMaterial->GetShader();
-    objectShader->Use();
+    auto mesh = renderInfo->GetMesh();
+    auto modelBuffers = mesh->GetBuffers();
 
-    UploadPerFrameProperties(objectShader);
-    UploadMaterialProperties(objectMaterial, objectShader);
-    UploadPerModelProperties(objectShader, renderInfo);
-    UploadLightProperties(objectShader);
-
-    auto modelBuffers = renderInfo->GetBufferInfo();
+    auto submeshes = mesh->GetSubMeshes();
+    auto submeshesMaterials = mesh->GetSubmeshToMaterial();
     glBindVertexArray(modelBuffers.vao);
-    glDrawElements(GL_TRIANGLES, modelBuffers.amountIndex, GL_UNSIGNED_INT, 0);
+    for (unsigned int i = 0; i < submeshes.size(); i++)
+    {
+        auto submeshMaterial = submeshesMaterials[i];
+        auto submesh = submeshes[i];
+        auto objectShader = submeshMaterial->GetShader();
+        objectShader->Use();
+        UploadPerFrameProperties(objectShader);
+        UploadMaterialProperties(submeshMaterial.get(), objectShader);
+        UploadPerModelProperties(objectShader, renderInfo);
+        UploadLightProperties(objectShader);
+
+
+        auto indexOffset = (void*)(uintptr_t)(submesh.indexOffset * sizeof(uint32_t));
+        glDrawElements(GL_TRIANGLES, submesh.indexCount, GL_UNSIGNED_INT, indexOffset);
+    }
 }
 
 
@@ -265,7 +275,7 @@ void Renderer::UploadLightProperties(Shader* shader)
 
         auto positionUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
             LightProperty::Position);
-        auto positionValue = UniformValue{sceneLight->m_localTransform.m_position};
+        auto positionValue = UniformValue{sceneLight->GetLocalPos()};
         shader->setUniformPerName(positionUniform, positionValue);
 
 

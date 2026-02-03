@@ -46,7 +46,7 @@ class Entity
     //Transform
     glm::vec3 m_localPos = glm::vec3(0.0f, 0.0f, 0.0f);
     glm::vec3 m_localRot = glm::vec3(0.0f, 0.0f, 0.0f);
-    glm::vec3 m_localScale = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 m_localScale = glm::vec3(1.0f, 1.0f, 1.0f);
 
     glm::mat4 m_localMat = glm::mat4(1.0f);
     glm::mat4 m_worldMat = glm::mat4(1.0f);
@@ -63,6 +63,7 @@ class Entity
 
 
 public:
+    Entity();
     void SetModelRenderInfo(std::unique_ptr<ModelRenderInfo> modelRenderInfo);
 
     void SetId(uuids::uuid id) { m_id = id; }
@@ -94,6 +95,15 @@ public:
         auto localPos = inverse(m_parent->GetWorldMat()) * glm::vec4(globalPos, 1.0f);
         SetLocalPos(glm::vec3(localPos));
     }
+
+    void ApplyFunctionToChildren(const std::function<void(Entity*)>& function)
+    {
+        function(this);
+        for (auto child : m_child)
+        {
+            child->ApplyFunctionToChildren(function);
+        }
+    };
 
 
     void AddComponent(std::unique_ptr<IComponent> component);
@@ -136,6 +146,19 @@ public:
     void SetLocalScale(glm::vec3 scale)
     {
         m_localScale = scale;
+        UpdateTransform();
+    }
+
+    glm::vec3 GetLocalPos() const { return m_localPos; }
+    glm::vec3 GetLocalRot() const { return m_localRot; }
+    glm::vec3 GetLocalScale() const { return m_localScale; }
+
+
+    void SetAllLocal(const glm::vec3& localPos, const glm::vec3& localRot, const glm::vec3 localScale)
+    {
+        m_localPos = localPos;
+        m_localRot = localRot;
+        m_localScale = localScale;
         UpdateTransform();
     }
 

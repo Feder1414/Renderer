@@ -3,10 +3,12 @@
 //
 
 #include "Mesh.h"
+
+#include "Material.h"
 #include "VertexLayout.h"
 
 
-void Mesh::CreateBuffers(const VertexLayout& vertexLayout)
+void Mesh::CreateBuffers()
 {
     glGenVertexArrays(1, &m_vao);
     glBindVertexArray(m_vao);
@@ -22,5 +24,13 @@ void Mesh::CreateBuffers(const VertexLayout& vertexLayout)
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, m_IndexData.size() * sizeof(int), m_IndexData.data(),
                  GL_STATIC_DRAW);
 
-    vertexLayout.SetAttribsVao(m_vao);
+    m_vertexLayout->SetAttribsVao(m_vao);
+}
+
+void Mesh::SetShader(Shader* shader)
+{
+    for (auto& material : m_submeshToMaterial)
+    {
+        material->SetShader(shader);
+    }
 }

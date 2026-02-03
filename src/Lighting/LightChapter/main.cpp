@@ -64,37 +64,8 @@ void processInput(GLFWwindow* window)
     }
 }
 
-
-int main()
+std::shared_ptr<Mesh> CreateCubeMesh(std::shared_ptr<Material> material, std::shared_ptr<VertexLayout> vertexLayout)
 {
-    glfwInit();
-    glfwSetErrorCallback(OnErrorWindow);
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-
-    GLFWwindow* window = glfwCreateWindow(WindowState::width, WindowState::height, "LearnOpenGL", NULL, NULL);
-    if (window == NULL)
-    {
-        std::cout << "Failed to create GLFW window" << std::endl;
-        glfwTerminate();
-        return -1;
-    }
-    glfwMakeContextCurrent(window);
-
-    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-    {
-        std::cout << "Failed to initialize GLAD" << std::endl;
-    }
-    glViewport(0, 0, WindowState::width, WindowState::height);
-
-    glfwSetFramebufferSizeCallback(window, OnViewportSizeChanged);
-
-    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-
-
     std::vector<float> cubeVertices = {
 
         // Cara trasera
@@ -144,62 +115,9 @@ int main()
         0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         -0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
         -0.5f, 0.5f, -0.5f, 0.5f, 0.5f, 0.5f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f,
-
     };
 
-    std::vector<float> cubeVerticesLight = {
-
-        // Cara trasera
-        -0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, 0.5f, -0.5f,
-        0.5f, 0.5f, -0.5f,
-        -0.5f, 0.5f, -0.5f,
-        -0.5f, -0.5f, -0.5f,
-
-        // Cara delantera
-        -0.5f, -0.5f, 0.5f,
-        0.5f, -0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-        -0.5f, 0.5f, 0.5f,
-        -0.5f, -0.5f, 0.5f,
-
-        //Cara izquierda
-        -0.5f, 0.5f, 0.5f,
-        -0.5f, 0.5f, -0.5f,
-        -0.5f, -0.5f, -0.5f,
-        -0.5f, -0.5f, -0.5f,
-        -0.5f, -0.5f, 0.5f,
-        -0.5f, 0.5f, 0.5f,
-
-        // Cara derecha
-        0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-
-        // Cara abajo
-        -0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, -0.5f,
-        0.5f, -0.5f, 0.5f,
-        0.5f, -0.5f, 0.5f,
-        -0.5f, -0.5f, 0.5f,
-        -0.5f, -0.5f, -0.5f,
-
-        //Cara superior
-        -0.5f, 0.5f, -0.5f,
-        0.5f, 0.5f, -0.5f,
-        0.5f, 0.5f, 0.5f,
-        0.5f, 0.5f, 0.5f,
-        -0.5f, 0.5f, 0.5f,
-        -0.5f, 0.5f, -0.5f,
-
-    };
-
-    std::vector<int> cubeIndices = {
+    std::vector<unsigned int> cubeIndices = {
         0, 1, 2,
         3, 4, 5,
         6, 7, 8,
@@ -216,6 +134,54 @@ int main()
 
     };
 
+    std::vector<SubMesh> submeshes = {
+    };
+    submeshes.push_back({
+        .indexOffset = 0,
+        .indexCount = static_cast<unsigned int>(cubeIndices.size()),
+
+        .vertexOffset = 0,
+        .vertexCount = static_cast<unsigned int>(cubeVertices.size())
+
+    });
+    std::vector<std::shared_ptr<Material>> submeshToMaterial = {material};
+
+    std::shared_ptr<Mesh> cubeMesh = std::make_shared<Mesh>(cubeVertices, cubeIndices, vertexLayout, submeshes,
+                                                            submeshToMaterial);
+
+    return cubeMesh;
+}
+
+
+int main()
+{
+    glfwInit();
+    glfwSetErrorCallback(OnErrorWindow);
+
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+
+    GLFWwindow* window = glfwCreateWindow(WindowState::width, WindowState::height, "LearnOpenGL", NULL, NULL);
+    if (window == NULL)
+    {
+        std::cout << "Failed to create GLFW window" << std::endl;
+        glfwTerminate();
+        return -1;
+    }
+    glfwMakeContextCurrent(window);
+
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    {
+        std::cout << "Failed to initialize GLAD" << std::endl;
+    }
+    glViewport(0, 0, WindowState::width, WindowState::height);
+
+    glfwSetFramebufferSizeCallback(window, OnViewportSizeChanged);
+
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
 
     //Setear la escena ----------------------------------------------------------------
 
@@ -228,25 +194,30 @@ int main()
         {.type = VertexAttributeType::FLOAT, .attributeName = "normal", .amountComponents = 3},
     };
 
-    VertexLayout verticesShaderLayout = VertexLayout(verticesLayout);
+    std::shared_ptr<VertexLayout> verticesShaderLayout = std::make_shared<VertexLayout>(verticesLayout);
 
-    auto cubeModel = Mesh(cubeVertices, cubeIndices);
-
-    auto cubeModelLight = Mesh(cubeVerticesLight, cubeIndices);
 
     std::unique_ptr<Shader> shaderLight = std::make_unique<Shader>("Shaders/vertexShader.vert",
                                                                    "Shaders/fragmentShader.vert");
-    std::unique_ptr<Material> cubeMaterial = std::make_unique<Material>(shaderLight.get());
+    std::shared_ptr<Material> cubeMaterial = std::make_unique<Material>();
+    cubeMaterial->SetShader(shaderLight.get());
+
+
+    auto cubeModel = CreateCubeMesh(cubeMaterial, verticesShaderLayout);
     shaderLight->setPrintDebug(true);
-    std::unique_ptr<ModelRenderInfo> cube = std::make_unique<ModelRenderInfo>(
-        &cubeModel, verticesShaderLayout, cubeMaterial.get());
+    std::unique_ptr<ModelRenderInfo> cube = std::make_unique<ModelRenderInfo>(cubeModel);
 
     std::unique_ptr<Entity> cubeEntity = std::make_unique<Entity>();
     cubeEntity->SetModelRenderInfo(std::move(cube));
-    cubeEntity->m_localTransform.m_position.z = -5;
+    auto cubePos = cubeEntity->GetLocalPos();
+    cubePos.z = -5.0f;
+    cubeEntity->SetLocalPos(cubePos);
+
     cubeEntity->SetUpdate([](Entity* entity, float deltaTime)
     {
-        entity->m_localTransform.m_position.y = sin(Time::time);
+        auto entityPos = entity->GetLocalPos();
+        entityPos.y = sin(Time::time);
+        entity->SetLocalPos(entityPos);
     });
 
     //LightCube
@@ -256,14 +227,14 @@ int main()
     std::unique_ptr<Shader> lightDebugShader = std::make_unique<Shader>("Shaders/lightDebug.vert",
                                                                         "Shaders/lightDebug.frag");
 
-    std::unique_ptr<Material> lightCubeMaterial = std::make_unique<Material>(lightDebugShader.get());
-    std::unique_ptr<ModelRenderInfo> cubeLight = std::make_unique<ModelRenderInfo>(
-        &cubeModelLight, verticesLayoutDebugLightShader, lightCubeMaterial.get());
+    std::unique_ptr<Material> lightCubeMaterial = std::make_unique<Material>();
+    lightCubeMaterial->SetShader(lightDebugShader.get());
+    std::unique_ptr<ModelRenderInfo> cubeLight = std::make_unique<ModelRenderInfo>(cubeModel);
     std::unique_ptr<Light> spotLight = std::make_unique<Light>();
     spotLight->m_attenuationLinear = 0.09f;
     spotLight->m_attenuationQuadratic = 0.032f;
     std::unique_ptr<Entity> pointLightEntity = std::make_unique<Entity>();
-    pointLightEntity->m_localTransform.m_position = glm::vec3(0.0, 1.0f, -4.5f);
+    pointLightEntity->SetLocalPos(glm::vec3(0.0, 1.0f, -4.5f));
     pointLightEntity->SetModelRenderInfo(std::move(cubeLight));
     pointLightEntity->AddComponent(std::move(spotLight));
     pointLightEntity->SetUpdate([](Entity* entity, float deltaTime)
@@ -272,8 +243,10 @@ int main()
         float posY = r * sin(Time::time);
         float posZ = r * cos(Time::time) - 5.0f;
 
-        entity->m_localTransform.m_position.y = posY;
-        entity->m_localTransform.m_position.z = posZ;
+        auto entityPos = entity->GetLocalPos();
+        entityPos.y = posY;
+        entityPos.z = posZ;
+        entity->SetLocalPos(entityPos);
     });
 
 
@@ -310,14 +283,14 @@ int main()
     for (int i = 0; i < amountLights; i++)
     {
         auto lightEntity = std::make_unique<Entity>();
-        auto renderInfo = std::make_unique<ModelRenderInfo>(&cubeModelLight, verticesLayoutDebugLightShader,
-                                                            lightCubeMaterial.get());
+        auto renderInfo = std::make_unique<ModelRenderInfo>(cubeModel);
+
         lightEntity->SetModelRenderInfo(std::move(renderInfo));
         auto lightComponent = std::make_unique<Light>();
         lightComponent->m_lightType = LightType::PointLight;
         lightEntity->AddComponent(std::move(lightComponent));
-        lightEntity->m_localTransform.m_position = glm::vec3(lightPosX->GetRandom(), lightPosy->GetRandom(),
-                                                      lightPosz->GetRandom());
+        lightEntity->SetLocalPos(glm::vec3(lightPosX->GetRandom(), lightPosy->GetRandom(),
+                                           lightPosz->GetRandom()));
 
         scene->AddEntity(std::move(lightEntity));
     }
@@ -349,7 +322,8 @@ int main()
         {
             auto& activeCamera = entity->GetScene()->GetCameras()[0];
             auto spotLightComponent = entity->GetComponent<Light>();
-            entity->m_localTransform.m_position = activeCamera->GetTransform().m_position;
+            auto activeCameraPos = activeCamera->GetTransform().m_position;
+            entity->SetLocalPos(activeCamera->GetTransform().m_position);
             spotLightComponent->m_direction = activeCamera->GetForward();
         }
     );

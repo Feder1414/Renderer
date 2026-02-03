@@ -7,6 +7,12 @@
 #include "IComponent.h"
 #include "ModelRenderInfo.h"
 
+Entity::Entity()
+{
+    UpdateTransform();
+}
+
+
 void Entity::SetModelRenderInfo(std::unique_ptr<ModelRenderInfo> modelRenderInfo)
 {
     m_modelRenderInfo = std::move(modelRenderInfo);
@@ -42,6 +48,7 @@ void Entity::UpdateTransform()
         m_worldMat = m_parent->m_worldMat * m_localMat;
         m_normMat = glm::transpose(glm::inverse(glm::mat3(m_worldMat)));
     }
+
     for (auto& child : m_child)
     {
         child->UpdateTransform();
@@ -50,11 +57,8 @@ void Entity::UpdateTransform()
 
 void Entity::CalculateLocalMatrix()
 {
-    auto trans = glm::mat4(1.0f);
-    trans = glm::translate(trans, m_localPos);
-    trans = trans * GetRotation();
-    trans = glm::scale(trans, m_localScale);
-    m_localMat = trans;
+    m_localMat = glm::translate(glm::mat4(1.0f), m_localPos) * GetRotation() * glm::scale(
+        glm::mat4(1.0f), m_localScale);
 }
 
 glm::mat4 Entity::GetRotation() const

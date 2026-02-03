@@ -5,7 +5,8 @@
 #ifndef GRAFICOS_COMPONENT_H
 #define GRAFICOS_COMPONENT_H
 
-#include "Entity.h"
+
+class Entity;
 
 class IComponent
 {

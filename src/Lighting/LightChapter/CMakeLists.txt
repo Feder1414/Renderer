@@ -57,7 +57,6 @@ target_link_libraries(LightChapter PRIVATE
         assimp
 )
 
-
 copyDirectories(LightChapter textures Shaders)
 
 #

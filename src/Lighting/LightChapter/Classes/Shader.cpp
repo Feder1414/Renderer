@@ -225,13 +225,11 @@ void Shader::setVariableFloat(const std::string& variableName, float value, int 
 
 void Shader::setVariableMatrix4(const std::string& variableName, glm::mat4 value, int uniformLocation) const
 {
-
     glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, glm::value_ptr(value));
 }
 
 void Shader::setVariableMatrix3(const std::string& variableName, glm::mat3 value, int uniformLocation)
 {
-
     glUniformMatrix3fv(uniformLocation, 1, GL_FALSE, glm::value_ptr(value));
 }
 
@@ -292,7 +290,7 @@ void Shader::setUniformPerName(const std::string& variableName, UniformValue& un
         {
             this->setVariableMatrix3(uniformName, x, shaderResource.location);
         }
-        else if constexpr (std::is_same_v<T, Texture*>)
+        else if constexpr (std::is_same_v<T, Texture*> || std::is_same_v<T, std::shared_ptr<Texture>>)
         {
             x->BindTexture();
             this->setVariableInt(uniformName, x->GetTextureSlot(), shaderResource.location);

@@ -10,6 +10,8 @@
 #include <variant>
 #include <vector>
 #include <array>
+#include <memory>
+
 #include "gtc/matrix_transform.hpp"
 #include "gtc/type_ptr.hpp"
 
@@ -17,7 +19,7 @@
 class Shader;
 
 using UniformValue = std::variant<float, int, unsigned int, bool, std::monostate, glm::vec3, glm::mat4, Texture*,
-                                  glm::mat3>;
+                                  glm::mat3, std::shared_ptr<Texture>>;
 using MaterialBasicProperty = std::variant<glm::vec3, Texture*>;
 
 
@@ -32,16 +34,16 @@ enum class MaterialPropertyEnum
 
 class Material
 {
-    Shader* m_Shader;
+    Shader* m_Shader = nullptr;
     std::vector<const Texture*> m_textures;
     std::unordered_map<
         std::string, UniformValue> uniformValues = {};
     std::array<UniformValue, static_cast<size_t>(MaterialPropertyEnum::Max)> m_materialProperties = {};
 
 public:
-    explicit Material(Shader* shader);
     void SetUniformValue(const std::string& variableName, const UniformValue& uniformValue);
     void SetProperty(MaterialPropertyEnum materialProperty, UniformValue propertyValue);
+    void SetShader(Shader* shader) { m_Shader = shader; }
     static std::string MaterialPropertyNameToString(MaterialPropertyEnum materialProperty);
     const auto& GetMaterialProperties() const { return m_materialProperties; }
 

@@ -4,6 +4,7 @@
 
 #ifndef GRAFICOS_SCENE_H
 #define GRAFICOS_SCENE_H
+#include <iostream>
 #include <vector>
 
 

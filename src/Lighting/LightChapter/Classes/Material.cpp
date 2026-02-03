@@ -9,15 +9,15 @@
 #include "Shader.h"
 
 
-Material::Material(Shader* shader) : m_Shader(shader)
-{
-    auto uniformNames = m_Shader->GetUniformNames();
-
-    for (auto uniformName : uniformNames)
-    {
-        uniformValues.insert({uniformName, UniformValue{std::monostate{}}});
-    }
-}
+// Material::Material(Shader* shader) : m_Shader(shader)
+// {
+//     auto uniformNames = m_Shader->GetUniformNames();
+//
+//     for (auto uniformName : uniformNames)
+//     {
+//         uniformValues.insert({uniformName, UniformValue{std::monostate{}}});
+//     }
+// }
 
 void Material::SetUniformValue(const std::string& variableName, const UniformValue& uniformValue)
 {

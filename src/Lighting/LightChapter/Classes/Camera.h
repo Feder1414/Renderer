@@ -6,12 +6,18 @@
 #define GRAFICOS_CAMERA_H
 #include "gtc/matrix_transform.hpp"
 #include "gtc/type_ptr.hpp"
-#include "MouseHandler.h"
-#include "glfw3.h"
+
+
 #include "Transform.h"
+#include "IComponent.h"
+
+//Mouse handler includes glfw3 must be at the bottom
+#include "MouseHandler.h"
 
 
-class Camera
+
+
+class Camera : public IComponent
 {
 private:
     Transform m_transform = Transform();
@@ -48,6 +54,10 @@ public:
     {
         return m_fov;
     }
+
+    void Update()
+    {
+    };
 
     Transform& GetTransform() { return m_transform; }
 

@@ -20,9 +20,11 @@ endfunction()
 set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenGL REQUIRED)
+
 add_subdirectory(external)
 
 add_subdirectory(src)
+
 
 
 
