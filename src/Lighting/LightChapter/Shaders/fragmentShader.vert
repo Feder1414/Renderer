@@ -42,7 +42,7 @@ uniform sampler2D happyFace;
 //Material
 uniform sampler2D materialDiffuse;
 uniform sampler2D materialSpecular;
-uniform float materialShininess;
+uniform int materialShininess;
 
 //Light
 uniform Light lights[MAX_LIGHTS];

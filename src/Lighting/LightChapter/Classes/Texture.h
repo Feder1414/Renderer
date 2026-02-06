@@ -12,19 +12,16 @@ class Texture
 {
 private:
     int m_widht, m_height, m_numberChannels, m_textureSlot;
-    std::string m_samplerName;
-    inline static bool textureSlotsInitialized;
     unsigned int m_texture;
-    inline static std::set<int> avalaibleTextureSlots = std::set<int>();
-    inline static int amountSlots = 16;
     void GenerateTexture(const unsigned char* data, bool hasAlphaChannel);
     static void InitializeTextureSlots();
 
 public:
     explicit Texture();
-    void LoadImageFromFile(std::string filePath);
+    void LoadImageFromFile(std::string filePath, bool flipY = true);
     int GetTextureSlot() const { return m_textureSlot; };
     unsigned int GetTextureId() const { return m_texture; }
+    void SetTextureSlot(unsigned int textureSlot) { m_textureSlot = textureSlot; }
 
     void BindTexture() const;
 };

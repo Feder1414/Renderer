@@ -21,14 +21,15 @@
 
 void Material::SetUniformValue(const std::string& variableName, const UniformValue& uniformValue)
 {
-    auto it = uniformValues.find(variableName);
-
-    if (it == uniformValues.end())
-    {
-        std::cout << "Uniform variable with name " << variableName << " not found" << std::endl;
-        return;
-    }
-    it->second = uniformValue;
+    // auto it = uniformValues.find(variableName);
+    //
+    // if (it == uniformValues.end())
+    // {
+    //     std::cout << "Uniform variable with name " << variableName << " not found" << std::endl;
+    //     return;
+    // }
+    // it->second = uniformValue;
+    uniformValues[variableName] = uniformValue;
 }
 
 

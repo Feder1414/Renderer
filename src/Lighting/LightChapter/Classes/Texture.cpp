@@ -11,8 +11,9 @@
 
 class Shader;
 
-void Texture::LoadImageFromFile(std::string filePath)
+void Texture::LoadImageFromFile(std::string filePath, bool flipY)
 {
+    stbi_set_flip_vertically_on_load(flipY);
     unsigned char* data = stbi_load(filePath.c_str(), &m_widht, &m_height, &m_numberChannels, 0);
     const bool hasAlphaChannel
         =
@@ -31,21 +32,7 @@ void Texture::LoadImageFromFile(std::string filePath)
 
 void Texture::GenerateTexture(const unsigned char* data, bool hasAlphaChannel)
 {
-    if (!textureSlotsInitialized)
-    {
-        InitializeTextureSlots();
-    }
-
-    if (avalaibleTextureSlots.empty())
-    {
-        std::cout << "There is no available texture slots or maybe the textureSlotSet is not initialized";
-        return;
-    }
-
-    m_textureSlot = *avalaibleTextureSlots.begin();
-    avalaibleTextureSlots.erase(m_textureSlot);
-
-    std::cout << "Texture with id: " << m_texture << " assigned to slot: " << m_textureSlot << std::endl;
+    std::cout << "Texture with id: " << m_texture << " loaded " << std::endl;
 
 
     // for (auto it = avalaibleTextureSlots.begin(); it != avalaibleTextureSlots.end(); ++it)
@@ -55,35 +42,29 @@ void Texture::GenerateTexture(const unsigned char* data, bool hasAlphaChannel)
     // }
 
 
-    glGenTextures(1, &m_texture);
-
-    BindTexture();
+    glCreateTextures(GL_TEXTURE_2D, 1, &m_texture);
 
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_widht, m_height, 0, hasAlphaChannel ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE,
-                 data);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    glTextureParameteri(m_texture, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTextureParameteri(m_texture, GL_TEXTURE_WRAP_T, GL_REPEAT);
+    glTextureParameteri(m_texture, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTextureParameteri(m_texture, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    int mipLevels = static_cast<int>(std::floor(std::log2(std::max(m_widht, m_height)))) + 1;
+
+    GLenum fmt = hasAlphaChannel ? GL_RGBA : GL_RGB;
+
+    glTextureStorage2D(m_texture, mipLevels, hasAlphaChannel ? GL_RGBA8 : GL_RGB8, m_widht, m_height);
+    glTextureSubImage2D(m_texture, 0, 0, 0, m_widht, m_height, fmt, GL_UNSIGNED_BYTE,
+                        data);
+    glGenerateTextureMipmap(m_texture);
 }
 
 void Texture::BindTexture() const
 {
-    glActiveTexture(GL_TEXTURE0 + m_textureSlot);
-    glBindTexture(GL_TEXTURE_2D, m_texture);
+    glBindTextureUnit(m_textureSlot, m_texture);
 }
 
-void Texture::InitializeTextureSlots()
-{
-    avalaibleTextureSlots = std::set<int>();
-    for (int i = 0; i < amountSlots; i++)
-    {
-        avalaibleTextureSlots.insert(i);
-    }
-    textureSlotsInitialized = true;
-}
 
 Texture::Texture()
 {

@@ -59,7 +59,7 @@ target_link_libraries(LightChapter PRIVATE
 
 target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL)
 
-copyDirectories(LightChapter textures Shaders)
+copyDirectories(LightChapter textures Shaders assets)
 
 #
 #configure_file(Textures/fragmentShader.vert ${CMAKE_CURRENT_BINARY_DIR}/Textures/fragmentShader.vert COPYONLY)

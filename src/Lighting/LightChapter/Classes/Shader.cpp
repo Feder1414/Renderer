@@ -215,7 +215,10 @@ void Shader::setVariableBool(const std::string& variableName, bool value, int un
 
 void Shader::setVariableInt(const std::string& variableName, int value, int uniformLocation) const
 {
-    glUniform1i(uniformLocation, value);
+
+
+    glProgramUniform1i(m_shaderProgram, uniformLocation, value);
+
 }
 
 void Shader::setVariableFloat(const std::string& variableName, float value, int uniformLocation) const
@@ -241,8 +244,9 @@ void Shader::setVariableVec3(const std::string& variableName, glm::vec3 value, i
 
 void Shader::setUniformPerName(const std::string& variableName, UniformValue& uniformValue)
 {
+
     auto it = m_uniformNameToResource.find(variableName);
-    if (it == m_uniformNameToResource.end())
+    if (it == m_uniformNameToResource.end() || it->second.location == -1)
     {
         if (m_printDebug && currAmountPrints < m_amountDebugPrints)
         {
@@ -292,8 +296,8 @@ void Shader::setUniformPerName(const std::string& variableName, UniformValue& un
         }
         else if constexpr (std::is_same_v<T, Texture*> || std::is_same_v<T, std::shared_ptr<Texture>>)
         {
-            x->BindTexture();
             this->setVariableInt(uniformName, x->GetTextureSlot(), shaderResource.location);
+
         }
     }, uniformValue);
 }

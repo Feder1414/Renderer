@@ -22,7 +22,7 @@ class Scene;
 class AssimpLoader
 {
 public:
-    AssimpLoader(Scene* scene, const std::string& filePath);
+    AssimpLoader(Scene* scene, const std::string& filePath, std::shared_ptr<VertexLayout> targetVertexLayout = nullptr);
     Entity* ImportScene();
 
 private:
@@ -33,12 +33,14 @@ private:
     unsigned int m_vertexCount = 0;
     const aiScene* m_aiScene;
     Entity* m_rootEntity;
+    std::shared_ptr<VertexLayout> m_targetVertexLayout;
 
 
     std::vector<unsigned int> m_activeColorSets = {};
     std::vector<unsigned int> m_activeUvSets = {};
 
     std::string m_filePath;
+    std::string m_localPath;
     void ProcessNode(aiNode* aiNode, const aiScene* scene, Entity*);
     void ProcessSubmesh(::aiMesh* aiMesh, const std::string& meshName,
                         std::shared_ptr<VertexLayout> vertexLayout, std::vector<float>& vertexData,
@@ -55,6 +57,10 @@ private:
     static void DecomposeAiTranform(const aiMatrix4x4& aiTransform, glm::vec3& position, glm::vec3& rotation,
                                     glm::vec3& scale);
     static void CopyAiVectorToGlmVector(const aiVector3t<float>& aiVector, glm::vec3& glmVec);
+
+    void CalculateBaseLocalPath();
+
+    void CleanLoader();
 
     Scene* m_scene;
 };

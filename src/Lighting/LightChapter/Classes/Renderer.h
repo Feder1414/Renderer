@@ -30,11 +30,13 @@ public:
     }
 
 private:
+    static int MAX_TEXTURE_SLOTS;
     int m_width, m_height = 0;
+    int m_currTextureSlot = 0;
     bool m_renderLights = false;
     Scene* m_currScene;
 
-
+    void BindTexture(Texture* texture);
     void UploadMaterialProperties(const Material* material, Shader* shader);
 
     void UploadUniformProperties(const std::unordered_map<std::string, UniformValue>& uniformValues,

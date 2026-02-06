@@ -13,10 +13,13 @@
 #include "Entity.h"
 #include "Scene.h"
 
-AssimpLoader::AssimpLoader(Scene* scene, const std::string& filePath)
+AssimpLoader::AssimpLoader(Scene* scene, const std::string& filePath,
+                           std::shared_ptr<VertexLayout> targetVertexLayout)
 {
     m_scene = scene;
     m_filePath = filePath;
+    m_targetVertexLayout = targetVertexLayout;
+    CalculateBaseLocalPath();
 }
 
 Entity* AssimpLoader::ImportScene()
@@ -31,6 +34,7 @@ Entity* AssimpLoader::ImportScene()
     }
     m_aiScene = aiScene;
     ProcessNode(aiScene->mRootNode, aiScene, nullptr);
+
     return m_rootEntity;
 }
 
@@ -61,20 +65,21 @@ void AssimpLoader::ProcessNode(aiNode* aiNode, const aiScene* aiScene, Entity* p
     // Process Mesh
     m_indexOffset = 0;
     m_vertexOffset = 0;
-    if (aiNode->mMeshes)
+    if (aiNode->mNumMeshes > 0)
     {
         auto meshName = m_filePath + nodeName;
         std::shared_ptr<Mesh> mesh = AssetManager::GetMesh(meshName);
+
         if (!mesh)
         {
             //Assumes every submesh has the same vertex layout
             std::shared_ptr<VertexLayout> vertexLayout = GetVertexLayout(aiScene->mMeshes[aiNode->mMeshes[0]]);
+
             std::vector<float> vertexData = {};
             std::vector<unsigned int> indexData = {};
-            std::vector<SubMesh> submeshes(aiNode->mNumMeshes);
+            std::vector<SubMesh> submeshes = {};
 
             std::vector<std::shared_ptr<Material>> materials = {};
-            std::vector<SubMesh> subMeshes = {};
             //ProcessSubmeshes
             for (unsigned int meshIndex = 0; meshIndex < aiNode->mNumMeshes; meshIndex++)
             {
@@ -87,6 +92,10 @@ void AssimpLoader::ProcessNode(aiNode* aiNode, const aiScene* aiScene, Entity* p
             m_activeColorSets.clear();
             m_activeUvSets.clear();
             mesh = std::make_shared<Mesh>(vertexData, indexData, vertexLayout, submeshes, materials);
+            if (m_targetVertexLayout)
+            {
+                mesh->SetTargetVertexLayout(m_targetVertexLayout);
+            }
             AssetManager::AddMesh(meshName, mesh);
         }
 
@@ -95,6 +104,11 @@ void AssimpLoader::ProcessNode(aiNode* aiNode, const aiScene* aiScene, Entity* p
         entity->SetModelRenderInfo(std::move(renderInfo));
     }
 
+
+    for (int i = 0; i < aiNode->mNumChildren; i++)
+    {
+        ProcessNode(aiNode->mChildren[i], aiScene, entity.get());
+    }
     m_scene->AddEntity(std::move(entity));
 }
 
@@ -115,9 +129,9 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
     for (unsigned int vertexIndex = 0; vertexIndex < aiMesh->mNumVertices; vertexIndex++)
     {
         //Load pos
-        vertexData.push_back(aiMesh->mVertices->x);
-        vertexData.push_back(aiMesh->mVertices->y);
-        vertexData.push_back(aiMesh->mVertices->z);
+        vertexData.push_back(aiMesh->mVertices[vertexIndex].x);
+        vertexData.push_back(aiMesh->mVertices[vertexIndex].y);
+        vertexData.push_back(aiMesh->mVertices[vertexIndex].z);
 
         //Load color
         for (auto& activeChannelColor : m_activeColorSets)
@@ -131,7 +145,7 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
         for (auto& activeUvChannel : m_activeUvSets)
         {
             auto amountComponents = aiMesh->mNumUVComponents[activeUvChannel];
-            for (unsigned int p = 0; vertexIndex < amountComponents; vertexIndex++)
+            for (unsigned int p = 0; p < amountComponents; p++)
             {
                 vertexData.push_back(aiMesh->mTextureCoords[activeUvChannel][vertexIndex][p]);
             }
@@ -157,9 +171,9 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
     for (unsigned int faceIndex = 0; faceIndex < aiMesh->mNumFaces; faceIndex++)
     {
         const auto& meshFace = aiMesh->mFaces[faceIndex];
-        for (unsigned int indexIndex = 0; meshFace.mNumIndices; indexIndex++)
+        for (unsigned int indexIndex = 0; indexIndex < meshFace.mNumIndices; indexIndex++)
         {
-            indexData.push_back(meshFace.mIndices[indexIndex]);
+            indexData.push_back(meshFace.mIndices[indexIndex] + submesh.vertexOffset);
             submesh.indexCount += 1;
         }
     }
@@ -170,17 +184,35 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
 
     //Process Material of submesh
     aiMaterial* aiMaterial = m_aiScene->mMaterials[aiMesh->mMaterialIndex];
+
     std::string materialName = m_filePath + std::to_string(aiMesh->mMaterialIndex);
     std::shared_ptr<Material> material = AssetManager::GetMaterial(materialName);
     if (!material)
     {
         material = std::make_shared<Material>();
 
-        std::vector<std::shared_ptr<Texture>> diffTextures;
+        std::vector<std::shared_ptr<Texture>> baseColTextures;
         std::vector<std::shared_ptr<Texture>> specTextures;
 
+
         unsigned int diffLayers = aiMaterial->GetTextureCount(aiTextureType_DIFFUSE);
+        unsigned int albedoLayers = aiMaterial->GetTextureCount(aiTextureType_BASE_COLOR);
+        unsigned int unknowLayers = aiMaterial->GetTextureCount(aiTextureType_UNKNOWN);
+
+
         unsigned specLayers = aiMaterial->GetTextureCount(aiTextureType_SPECULAR);
+        auto amountTotalTextures = 0;
+
+        // for (unsigned int i = 1; i < aiTextureType_GLTF_METALLIC_ROUGHNESS + 1; i++)
+        // {
+        //     auto textureType = static_cast<aiTextureType>(i);
+        //     amountTotalTextures += aiMaterial->GetTextureCount(textureType);
+        // }
+        //
+        // if (amountTotalTextures > 0)
+        // {
+        //     std::cout << "THere are  fucking texturesssssssssssssssssssssssss" << std::endl;
+        // }
 
         if (diffLayers > 0)
         {
@@ -194,13 +226,36 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
         }
 
 
-        ProcessTexture(aiMaterial, aiTextureType_DIFFUSE,
-                       Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), diffTextures);
-        material->SetProperty(MaterialPropertyEnum::Diffuse, diffTextures[0]);
+        if (albedoLayers > 0)
+        {
+            ProcessTexture(aiMaterial, aiTextureType_BASE_COLOR,
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures);
+        }
+        else if (diffLayers > 0)
+        {
+            ProcessTexture(aiMaterial, aiTextureType_DIFFUSE,
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures);
+        }
+
+        aiColor3D diffuseColor;
+        if (aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS)
+        {
+            glm::vec3 glmColor = glm::vec3(diffuseColor.r, diffuseColor.g, diffuseColor.b);
+            material->SetProperty(MaterialPropertyEnum::Diffuse, glmColor);
+        }
+
+        if (!baseColTextures.empty())
+        {
+            material->SetProperty(MaterialPropertyEnum::Diffuse, baseColTextures[0]);
+        }
+
 
         AssetManager::AddMaterial(materialName, material);
+
     }
+
     materials.push_back(material);
+
 }
 
 std::shared_ptr<VertexLayout> AssimpLoader::GetVertexLayout(aiMesh* aiMesh)
@@ -239,6 +294,7 @@ std::shared_ptr<VertexLayout> AssimpLoader::GetVertexLayout(aiMesh* aiMesh)
                 .attributeName = VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttributes::UV, i),
                 .amountComponents = static_cast<int>(amountComponentsChannel),
             });
+            m_activeUvSets.push_back(i);
         }
     }
 
@@ -289,6 +345,8 @@ void AssimpLoader::DecomposeAiTranform(const aiMatrix4x4& aiTransform, glm::vec3
     AssimpLoader::CopyAiVectorToGlmVector(pos, glmPosition);
     AssimpLoader::CopyAiVectorToGlmVector(rot, glmRotation);
     AssimpLoader::CopyAiVectorToGlmVector(scale, glmScale);
+
+    glmRotation = glm::degrees(glmRotation);
 }
 
 void AssimpLoader::CopyAiVectorToGlmVector(const aiVector3t<float>& aiVector, glm::vec3& glmVec)
@@ -302,18 +360,35 @@ void AssimpLoader::ProcessTexture(aiMaterial* aiMaterial, aiTextureType aiTextur
                                   std::vector<std::shared_ptr<Texture>>& textures)
 {
     unsigned int amountTextures = aiMaterial->GetTextureCount(aiTextureType);
+
+
     for (int i = 0; i < amountTextures; i++)
     {
         aiString texPath;
-        std::string texturePath(texPath.C_Str());
         aiMaterial->GetTexture(aiTextureType, i, &texPath);
+        std::string texturePath(texPath.C_Str());
+        texturePath = m_localPath + texturePath;
+
         std::shared_ptr<Texture> texture = AssetManager::GetTexture(texturePath);
         if (!texture)
         {
             texture = std::make_shared<Texture>();
             texture->LoadImageFromFile(texturePath);
             AssetManager::AddTexture(texturePath, texture);
+
         }
+
         textures.push_back(texture);
+    }
+}
+
+void AssimpLoader::CalculateBaseLocalPath()
+{
+    m_localPath = m_filePath;
+    auto lastIndexSlash = m_filePath.rfind("/");
+
+    if (lastIndexSlash != std::string::npos)
+    {
+        m_localPath = m_localPath.substr(0, lastIndexSlash + 1);
     }
 }

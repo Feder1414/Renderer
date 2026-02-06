@@ -1,4 +1,3 @@
-
 #include <format>
 #include <fstream>
 #include <iostream>
@@ -11,6 +10,7 @@
 #include <random>
 
 
+#include "AssimpLoader.h"
 #include "Material.h"
 #include "Transform.h"
 #include "VertexLayout.h"
@@ -177,6 +177,14 @@ int main()
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
     }
+    glEnable(GL_DEBUG_OUTPUT);
+    glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
+    glDebugMessageCallback([](GLenum source, GLenum type, GLuint id, GLenum severity,
+                              GLsizei length, const GLchar* message, const void* userParam)
+    {
+        std::cerr << "GL DEBUG: " << message << "\n";
+    }, nullptr);
+
     glViewport(0, 0, WindowState::width, WindowState::height);
 
     glfwSetFramebufferSizeCallback(window, OnViewportSizeChanged);
@@ -189,10 +197,26 @@ int main()
 
     //Normal cube
     std::vector<VertexAttribute> verticesLayout = {
-        {.type = VertexAttributeType::FLOAT, .attributeName = "vertexPos", .amountComponents = 3},
-        {.type = VertexAttributeType::FLOAT, .attributeName = "vertexCol", .amountComponents = 4},
-        {.type = VertexAttributeType::FLOAT, .attributeName = "uv", .amountComponents = 2},
-        {.type = VertexAttributeType::FLOAT, .attributeName = "normal", .amountComponents = 3},
+        {
+            .type = VertexAttributeType::FLOAT,
+            .attributeName = VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttributes::POSITION),
+            .amountComponents = 3
+        },
+        {
+            .type = VertexAttributeType::FLOAT,
+            .attributeName = VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttributes::COLOR),
+            .amountComponents = 4
+        },
+        {
+            .type = VertexAttributeType::FLOAT,
+            .attributeName = VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttributes::UV),
+            .amountComponents = 2
+        },
+        {
+            .type = VertexAttributeType::FLOAT,
+            .attributeName = VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttributes::NORMAL),
+            .amountComponents = 3
+        },
     };
 
     std::shared_ptr<VertexLayout> verticesShaderLayout = std::make_shared<VertexLayout>(verticesLayout);
@@ -220,6 +244,7 @@ int main()
         entityPos.y = sin(Time::time);
         entity->SetLocalPos(entityPos);
     });
+    cubeEntity->SetName("CubeContainerEntity");
 
     //LightCube
     std::vector<VertexAttribute> verticesLayoutDebugLightShader = {
@@ -251,6 +276,7 @@ int main()
         entityPos.z = posZ;
         entity->SetLocalPos(entityPos);
     });
+    pointLightEntity->SetName("pointLightEntity");
 
 
     Texture woodenContainerDiffuse = Texture();
@@ -281,7 +307,7 @@ int main()
         std::mt19937, std::uniform_real_distribution<float>>>(-10, 10);
 
 
-    int amountLights = 10;
+    int amountLights = 0;
 
     for (int i = 0; i < amountLights; i++)
     {
@@ -330,14 +356,17 @@ int main()
             spotLightComponent->m_direction = activeCamera->GetForward();
         }
     );
+    spotLightEntity->SetName("SpotLightEntity");
 
     auto dirLightComponent = std::make_unique<Light>();
     dirLightComponent->m_direction = glm::vec3(-1.0f, -1.0f, -1.0f);
     auto dirLightEntity = std::make_unique<Entity>();
+    dirLightEntity->SetName("DirLightEntity");
     dirLightEntity->AddComponent(std::move(dirLightComponent));
 
     auto cameraEntity = std::make_unique<Entity>();
     cameraEntity->AddComponent(std::move(camera));
+    cameraEntity->SetName("MainCamera");
 
     //Add camera
     scene->AddEntity(std::move(cameraEntity));
@@ -355,6 +384,25 @@ int main()
     float lastTime = glfwGetTime();
 
     Time::time = lastTime;
+
+
+    auto shaderBackPack = std::make_unique<Shader>("Shaders/vertexShader.vert", "Shaders/fragShaderBackpack.frag");
+    //AssimpLoader
+    auto pathModel = "assets/survivalBackPack/backpack.obj";
+    auto assimpLoader = std::make_unique<AssimpLoader>(scene.get(), pathModel, verticesShaderLayout);
+    auto entity = assimpLoader->ImportScene();
+
+    auto shaderBackPackPtr = shaderBackPack.get();
+    auto setShaderChildren = [shaderBackPackPtr](Entity* entity)
+    {
+        if (entity->GetModelRenderInfo())
+        {
+            entity->GetModelRenderInfo()->SetShader(shaderBackPackPtr);
+        }
+    };
+
+    entity->ApplyFunctionToChildren(setShaderChildren);
+    entity->SetLocalScale(glm::vec3(0.1, 0.1f, 0.1f));
 
 
     while (!glfwWindowShouldClose(window))

@@ -14,6 +14,7 @@
 #include "Scene.h"
 #include "Camera.h"
 
+int Renderer::MAX_TEXTURE_SLOTS = 16;
 
 namespace
 {
@@ -28,6 +29,18 @@ namespace
             std::cout << std::endl;
         }
     }
+}
+
+void Renderer::BindTexture(Texture* texture)
+{
+    if (m_currTextureSlot >= 16)
+    {
+        std::cout << "Run out of texture slots" << std::endl;
+        return;
+    }
+    glBindTextureUnit(this->m_currTextureSlot, texture->GetTextureId());
+    texture->SetTextureSlot(m_currTextureSlot);
+    m_currTextureSlot += 1;
 }
 
 void Renderer::RenderScene()
@@ -63,24 +76,27 @@ void Renderer::RenderScene()
 
 void Renderer::UploadMaterialProperties(const Material* material, Shader* shader)
 {
-    int indexTextureSlot = 0;
-
     const auto& materialProperties = material->GetMaterialProperties();
     for (int i = 0; i < materialProperties.size(); i++)
     {
         const auto materialPropertyEnum = static_cast<MaterialPropertyEnum>(i);
         const auto uniformName = Material::MaterialPropertyNameToString(materialPropertyEnum);
         auto materialProperty = materialProperties[i];
-        std::visit([&indexTextureSlot](auto&& property)
+        std::visit([this](auto&& property)
         {
             using T = std::decay_t<decltype(property)>;
+
             if constexpr (std::is_same_v<T, Texture*>)
             {
-                glActiveTexture(GL_TEXTURE0 + indexTextureSlot);
-                glBindTexture(GL_TEXTURE_2D, property->GetTextureId());
-                indexTextureSlot += 1;
+                this->BindTexture(property);
+            }
+            else if constexpr (std::is_same_v<T, std::shared_ptr<Texture>>)
+            {
+                this->BindTexture(property.get());
             }
         }, materialProperty);
+
+
         shader->setUniformPerName(uniformName, materialProperty);
     }
 
@@ -187,10 +203,24 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
 void Renderer::UploadUniformProperties(const std::unordered_map<std::string, UniformValue>& uniformValues,
                                        Shader* shader)
 {
+
     for (auto& kp : uniformValues)
     {
         auto uniformName = kp.first;
         auto uniformValue = kp.second;
+        std::visit([this](auto&& property)
+        {
+            using T = std::decay_t<decltype(property)>;
+
+            if constexpr (std::is_same_v<T, Texture*>)
+            {
+                this->BindTexture(property);
+            }
+            else if constexpr (std::is_same_v<T, std::shared_ptr<Texture>>)
+            {
+                this->BindTexture(property.get());
+            }
+        }, uniformValue);
         shader->setUniformPerName(uniformName, uniformValue);
     }
 }
@@ -231,8 +261,10 @@ void Renderer::DrawModel(const ModelRenderInfo* renderInfo)
     auto submeshes = mesh->GetSubMeshes();
     auto submeshesMaterials = mesh->GetSubmeshToMaterial();
     glBindVertexArray(modelBuffers.vao);
+
     for (unsigned int i = 0; i < submeshes.size(); i++)
     {
+        m_currTextureSlot = 0;
         auto submeshMaterial = submeshesMaterials[i];
         auto submesh = submeshes[i];
         auto objectShader = submeshMaterial->GetShader();

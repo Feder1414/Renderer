@@ -45,6 +45,7 @@ struct VertexAttribute
     int sizeOfType;
     int amountComponents; //Usuario
     std::size_t offset;
+    unsigned int offsetComponents;
     int stride;
 };
 
@@ -65,11 +66,6 @@ class VertexLayout
     std::vector<int> accumulatedSize = {};
 
 
-    std::vector<VertexAttribute> GetVertexAttribute()
-    {
-        return m_verticesAttributes;
-    }
-
     unsigned int m_componentsPerVertex = 0;
 
 public:
@@ -80,6 +76,11 @@ public:
     unsigned int GetComponentsPerVertex() const { return m_componentsPerVertex; }
 
     std::string static VertexPredefinedAttrToString(VertexPredefinedAttributes attr, unsigned int uvIndex = 0);
+
+    const std::vector<VertexAttribute>& GetVertexAttribute()
+    {
+        return m_verticesAttributes;
+    }
 };
 
 

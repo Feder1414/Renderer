@@ -22,6 +22,7 @@ namespace
 VertexLayout::VertexLayout(const std::vector<VertexAttribute>& verticesAttributes)
 {
     accumulatedSize = std::vector<int>(verticesAttributes.size());
+    unsigned int offSetComponents = 0;
     for (int i = 0; i < verticesAttributes.size(); i++)
     {
         auto& vertexAttrib = verticesAttributes[i];
@@ -31,9 +32,11 @@ VertexLayout::VertexLayout(const std::vector<VertexAttribute>& verticesAttribute
 
         locVertexAttrib.sizeOfType = vertexAttribTypeInfo.size * locVertexAttrib.amountComponents;
         locVertexAttrib.glType = vertexAttribTypeInfo.glType;
+
         if (i == 0)
         {
             locVertexAttrib.offset = 0;
+
             accumulatedSize[i] = locVertexAttrib.sizeOfType;
         }
         else
@@ -41,6 +44,10 @@ VertexLayout::VertexLayout(const std::vector<VertexAttribute>& verticesAttribute
             locVertexAttrib.offset = accumulatedSize[i - 1];
             accumulatedSize[i] = accumulatedSize[i - 1] + locVertexAttrib.sizeOfType;
         }
+        locVertexAttrib.offsetComponents = offSetComponents;
+        offSetComponents += locVertexAttrib.amountComponents;
+
+
         m_verticesAttributes.push_back(locVertexAttrib);
 
         m_componentsPerVertex += vertexAttrib.amountComponents;

@@ -18,7 +18,7 @@
 
 class Shader;
 
-using UniformValue = std::variant<float, int, unsigned int, bool, std::monostate, glm::vec3, glm::mat4, Texture*,
+using UniformValue = std::variant<std::monostate, float, int, unsigned int, bool, glm::vec3, glm::mat4, Texture*,
                                   glm::mat3, std::shared_ptr<Texture>>;
 using MaterialBasicProperty = std::variant<glm::vec3, Texture*>;
 
