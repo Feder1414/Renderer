@@ -28,8 +28,7 @@ add_executable(LightChapter main.cpp
         Classes/UuidGenerator.cpp
         Classes/UuidGenerator.h
         Classes/IComponent.h
-        Classes/IWindow.cpp
-        Classes/IWindow.h
+        Classes/Window.cpp
         Classes/RandomCoordinateGenerator.cpp
         Classes/RandomCoordinateGenerator.h
         Classes/Engine.cpp
@@ -40,6 +39,11 @@ add_executable(LightChapter main.cpp
         Classes/AssetManager.h
         Classes/Sampler.cpp
         Classes/Sampler.h
+        Classes/Event.cpp
+        Classes/Event.h
+        Classes/Window.h
+        Classes/BasicShapesMeshGenerator.cpp
+        Classes/BasicShapesMeshGenerator.h
 
 )
 
@@ -55,6 +59,7 @@ target_link_libraries(LightChapter PRIVATE
         OpenGL::GL
         uuid
         assimp
+        imgui
 )
 
 target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL)

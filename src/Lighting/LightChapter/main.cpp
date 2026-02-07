@@ -21,7 +21,9 @@
 #include "MouseHandler.h"
 #include "Camera.h"
 #include "RandomCoordinateGenerator.h"
-
+#include "imgui.h"
+#include "backends/imgui_impl_opengl3.h"
+#include "backends/imgui_impl_glfw.h"
 
 namespace WindowState
 {
@@ -405,14 +407,28 @@ int main()
     entity->SetLocalScale(glm::vec3(0.1, 0.1f, 0.1f));
 
 
+    //Setup IMGUO
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+
+    ImGui_ImplGlfw_InitForOpenGL(window, true);
+    // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
+    ImGui_ImplOpenGL3_Init();
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
         processInput(window);
 
-        glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplGlfw_NewFrame();
+        ImGui::NewFrame();
+        ImGui::ShowDemoWindow();
+
 
         float currTime = glfwGetTime();
         Time::time = currTime;
@@ -430,8 +446,12 @@ int main()
         cameraActive->ProcessMovement(window, deltaTime);
         renderer->RenderScene();
 
+        ImGui::Render();
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
         glfwSwapBuffers(window);
+
+        // (Your code calls glfwSwapBuffers() etc.)
     }
 
     glfwTerminate();

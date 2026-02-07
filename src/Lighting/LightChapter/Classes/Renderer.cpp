@@ -45,6 +45,10 @@ void Renderer::BindTexture(Texture* texture)
 
 void Renderer::RenderScene()
 {
+    glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     if (!m_currScene)
     {
         std::cout << "There is no scene assigned to the renderer" << std::endl;
