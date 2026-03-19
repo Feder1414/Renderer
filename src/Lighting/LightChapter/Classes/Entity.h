@@ -8,7 +8,7 @@
 
 #include "uuid.h"
 #include "Transform.h"
-#include "ModelRenderInfo.h"
+#include "../Components/ModelRenderInfo.h"
 
 
 class Scene;
@@ -25,7 +25,6 @@ class Entity
 
     Entity* m_parent = nullptr;
 
-
     std::unique_ptr<ModelRenderInfo> m_modelRenderInfo;
     FunctionUpdateEntity m_updateFunction = [](Entity* entity, float deltaTime)
     {
@@ -40,6 +39,9 @@ class Entity
     void UpdateTransform();
 
     glm::mat4 GetRotation() const;
+
+    static void CopyMembersEntity(Entity* original, Entity* copyEntity);
+    Entity* CopyChildren(Entity* entity, std::vector<std::unique_ptr<Entity>>& childEntities, int k);
     void CalculateLocalMatrix();
 
 
@@ -73,6 +75,9 @@ public:
 
     void SetId(uuids::uuid id) { m_id = id; }
 
+    uuids::uuid GetId() { return m_id; }
+    [[nodiscard]] std::string GetIdStr() const { return to_string(m_id); }
+
     void SetScene(Scene* scene);
 
     void SetName(const std::string& name) { m_name = name; }
@@ -82,6 +87,10 @@ public:
 
     void Update(float deltaTime)
     {
+        for (auto& component : m_components)
+        {
+            component->Update();
+        }
         m_updateFunction(this, deltaTime);
     }
 
@@ -134,6 +143,13 @@ public:
         return nullptr;
     };
 
+    Entity* GetParent() const
+    {
+        return m_parent;
+    }
+
+    std::vector<Entity*>& GetChild() { return m_child; }
+
 
     void SetLocalPos(glm::vec3 pos)
     {
@@ -154,9 +170,9 @@ public:
         UpdateTransform();
     }
 
-    glm::vec3 GetLocalPos() const { return m_localPos; }
-    glm::vec3 GetLocalRot() const { return m_localRot; }
-    glm::vec3 GetLocalScale() const { return m_localScale; }
+    const glm::vec3& GetLocalPos() const { return m_localPos; }
+    const glm::vec3& GetLocalRot() const { return m_localRot; }
+    const glm::vec3& GetLocalScale() const { return m_localScale; }
 
 
     void SetAllLocal(const glm::vec3& localPos, const glm::vec3& localRot, const glm::vec3 localScale)
@@ -182,8 +198,14 @@ public:
 
     glm::vec3 GetForward() const { return m_forward; }
 
+    glm::vec3 GetWorldScale() const { return m_worldScale; }
+
 
     ModelRenderInfo* GetModelRenderInfo() const;
+
+    const std::vector<std::unique_ptr<IComponent>>& GetComponents() { return m_components; }
+
+    Entity* CopyEntity(std::vector<std::unique_ptr<Entity>>& entities);
 };
 
 

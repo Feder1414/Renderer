@@ -8,10 +8,9 @@
 #include <vector>
 
 
-#include "Light.h"
 #include "Entity.h"
-#include "ModelRenderInfo.h"
-#include "Camera.h"
+#include "Skybox.h"
+
 
 struct SceneLight
 {
@@ -28,13 +27,16 @@ private:
     std::vector<Entity*> m_lights = {};
     std::vector<Entity*> m_cameras = {};
     int m_indexActiveCamera = 0;
+    std::vector<Entity*> m_rootEntities;
+
+    std::unique_ptr<Skybox> m_skybox = nullptr;
 
 public:
     void AddEntity(std::unique_ptr<Entity> entity);
 
-    void AddCamera(std::unique_ptr<Camera> camera, bool setActive = true)
-    {
-    }
+    // void AddCamera(std::unique_ptr<Camera> camera, bool setActive = true)
+    // {
+    // }
 
     const std::vector<Entity*>& GetLights() const
     {
@@ -64,6 +66,12 @@ public:
         }
         return m_cameras[m_indexActiveCamera];
     }
+
+    void SetSkyBox(std::unique_ptr<Skybox> skybox) { m_skybox = std::move(skybox); }
+
+    Skybox* GetSkyBox() const { return m_skybox.get(); }
+
+    std::vector<Entity*>& GetSceneTree() { return m_rootEntities; }
 };
 
 

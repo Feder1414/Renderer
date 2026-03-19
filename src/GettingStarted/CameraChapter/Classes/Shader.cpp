@@ -13,6 +13,8 @@
 
 Shader::Shader(const char* vertexPath, const char* fragmentPath)
 {
+    m_verte
+
     unsigned int vertexShader, fragmentShader;
     int success;
     char infoLog[512];

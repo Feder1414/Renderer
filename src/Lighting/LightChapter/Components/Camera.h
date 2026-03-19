@@ -4,20 +4,18 @@
 
 #ifndef GRAFICOS_CAMERA_H
 #define GRAFICOS_CAMERA_H
-#include "gtc/matrix_transform.hpp"
-#include "gtc/type_ptr.hpp"
 
 
-#include "Transform.h"
+#include "../Classes/Transform.h"
 #include "IComponent.h"
 
 //Mouse handler includes glfw3 must be at the bottom
-#include "MouseHandler.h"
+#include "Frustum.h"
+#include "Metadata/ComponentPropertiesMetadata.h"
+#include "../Classes/MouseHandler.h"
 
 
-
-
-class Camera : public IComponent
+class Camera : public IComponent, public ComponentPropertiesMetadata<Camera>
 {
 private:
     Transform m_transform = Transform();
@@ -30,12 +28,26 @@ private:
     float m_nearPlane = 0.1;
     float m_farPlane = 100.0f;
 
+    float m_width, m_height = 100;
+
+    Frustum m_frustum;
+
     MouseHandler* m_mouseHandler;
 
     glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
     float m_movementSPeed = 0.5f;
 
+    void CalculateFrustrum();
+
 public:
+    glm::vec3 GetForwardCam() const;
+
+    const std::string& GetComponentName() override
+    {
+        static std::string name = "Camera";
+        return name;
+    };
+    Camera();
     glm::vec3 GetForward() { return m_forward; }
     void ProcessMovement(GLFWwindow* window, float deltaTime);
 
@@ -44,7 +56,7 @@ public:
         m_mouseHandler = mouseHandler;
     }
 
-    static void CalculateForwardVector(GLFWwindow* window, double posx, double posy);
+    void UpdateCamRotation(float offsetX, float offsetY);
 
     glm::mat4 GetViewMatrix() const;
 
@@ -59,10 +71,28 @@ public:
     {
     };
 
+
+    float GetNearPlane() const { return m_nearPlane; }
+
+    float GetFarPlane() const { return m_farPlane; }
+
+    void SetNearPlane(float nearPlane) { m_nearPlane = nearPlane; }
+    void SetFarPlane(float farPlane) { m_farPlane = farPlane; }
+
     Transform& GetTransform() { return m_transform; }
 
+    void SetWidthHeight(float width, float height)
+    {
+        m_width = width;
+        m_height = height;
+        CalculateFrustrum();
+    }
 
-    static void UpdateFOV(GLFWwindow* window, double xoffset, double yoffset);
+
+    void UpdateFOV(double xoffset, double yoffset);
+    void SetFov(double fov);
+
+    void SetComponentMetadata() override;
 };
 
 

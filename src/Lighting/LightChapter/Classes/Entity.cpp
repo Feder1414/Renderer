@@ -6,8 +6,8 @@
 #include <gtx/matrix_decompose.hpp>
 #include <gtx/euler_angles.hpp>
 
-#include "IComponent.h"
-#include "ModelRenderInfo.h"
+#include "../Components/IComponent.h"
+#include "../Components/ModelRenderInfo.h"
 
 
 Entity::Entity()
@@ -30,6 +30,7 @@ ModelRenderInfo* Entity::GetModelRenderInfo() const
 void Entity::AddComponent(std::unique_ptr<IComponent> component)
 {
     component->SetEntity(this);
+    component->SetComponentMetadata();
     m_components.push_back(std::move(component));
 }
 
@@ -87,4 +88,54 @@ glm::mat4 Entity::GetRotation() const
     // rot = glm::rotate(rot, glm::radians(m_localRot.y), Axis::Y);
 
     return glm::yawPitchRoll(glm::radians(m_localRot.y), glm::radians(m_localRot.x), glm::radians(m_localRot.z));
+}
+
+Entity* Entity::CopyEntity(std::vector<std::unique_ptr<Entity>>& entities)
+{
+    auto copyEntity = std::make_unique<Entity>();
+    auto copyEntityPtr = copyEntity.get();
+
+    Entity::CopyMembersEntity(this, copyEntityPtr);
+
+    entities.push_back(std::move(copyEntity));
+    for (auto& child : m_child)
+    {
+        auto copyChild = child->CopyEntity(entities);
+        copyEntityPtr->AddEntityChild(copyChild);
+    }
+    return copyEntityPtr;
+}
+
+
+void Entity::CopyMembersEntity(Entity* original, Entity* copyEntity)
+{
+    //Copy transforms
+    copyEntity->m_localPos = original->m_localPos;
+    copyEntity->m_localRot = original->m_localRot;
+    copyEntity->m_localScale = original->m_localScale;
+
+    copyEntity->m_worldPos = original->m_worldPos;
+    copyEntity->m_worldRot = original->m_worldRot;
+    copyEntity->m_worldScale = original->m_worldScale;
+
+    copyEntity->m_localMat = original->m_localMat;
+    copyEntity->m_worldMat = original->m_worldMat;
+
+    copyEntity->m_normMat = original->m_normMat;
+
+    copyEntity->m_forward = original->m_forward;
+    copyEntity->m_up = original->m_up;
+    copyEntity->m_right = original->m_right;
+
+    copyEntity->m_updateFunction = original->m_updateFunction;
+    copyEntity->m_name = original->m_name;
+    copyEntity->m_scene = original->m_scene;
+
+
+    if (original->m_modelRenderInfo)
+    {
+        auto renderInfo = std::unique_ptr<ModelRenderInfo>(
+            static_cast<ModelRenderInfo*>(original->m_modelRenderInfo->Clone().release()));
+        copyEntity->SetModelRenderInfo(std::move(renderInfo));
+    }
 }

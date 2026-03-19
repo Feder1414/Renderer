@@ -21,6 +21,17 @@ set(CMAKE_CXX_STANDARD 20)
 
 find_package(OpenGL REQUIRED)
 
+include(FetchContent)
+
+FetchContent_Declare(
+        tracy
+        GIT_REPOSITORY https://github.com/wolfpld/tracy.git
+        GIT_TAG v0.13.1
+        GIT_SHALLOW
+        GIT_PROGRESS
+)
+FetchContent_MakeAvailable(tracy)
+
 add_subdirectory(external)
 
 add_subdirectory(src)

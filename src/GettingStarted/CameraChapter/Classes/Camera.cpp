@@ -44,7 +44,7 @@ glm::mat4 Camera::GetViewMatrix() const
 
 }
 
-void Camera::CalculateForwardVector(GLFWwindow* window, double posx, double posy)
+void Camera::UpdateCamRotation(GLFWwindow* window, double posx, double posy)
 
 {
     auto* cam = static_cast<Camera*>(glfwGetWindowUserPointer(window));

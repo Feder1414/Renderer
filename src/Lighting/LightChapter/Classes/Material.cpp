@@ -33,7 +33,7 @@ void Material::SetUniformValue(const std::string& variableName, const UniformVal
 }
 
 
-void Material::SetProperty(const MaterialPropertyEnum materialProperty, UniformValue propertyValue)
+void Material::SetProperty(const MaterialPropertyEnum materialProperty, const UniformValue& propertyValue)
 {
     auto index = static_cast<size_t>(materialProperty);
     m_materialProperties[index] = propertyValue;
@@ -47,6 +47,7 @@ std::string Material::MaterialPropertyNameToString(MaterialPropertyEnum material
     case MaterialPropertyEnum::Diffuse: return "materialDiffuse";
     case MaterialPropertyEnum::Specular: return "materialSpecular";
     case MaterialPropertyEnum::Shininess: return "materialShininess";
+    case MaterialPropertyEnum::Transparency: return "transparency";
     default: return "Unknown property";
     }
 }

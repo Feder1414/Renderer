@@ -27,7 +27,7 @@ public:
     static std::shared_ptr<Material> AddMaterial(const std::string& materialName, std::shared_ptr<Material> material);
     static std::shared_ptr<Material> GetMaterial(const std::string& materialName);
 
-    static std::shared_ptr<Texture> AddTexture(const std::string& texturePath, std::shared_ptr<Texture> texture);
+    static std::shared_ptr<Texture> AddTexture(std::shared_ptr<Texture> texture);
     static std::shared_ptr<Texture> GetTexture(const std::string& textureName);
 };
 

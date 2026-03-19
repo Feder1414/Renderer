@@ -7,6 +7,14 @@
 #define DIRECTIONAL_LIGHT 1
 #define SPOT_LIGHT 2
 
+
+
+//Enum transparency
+#define OPAQUE 0
+#define SEMITRANSPARENT 1
+#define TRANSPARENT 2
+
+
 in vec4 fragCol;
 in vec2 uvFrag;
 in vec3 worldNormal;
@@ -34,13 +42,11 @@ struct Light {
 };
 
 
-
-
-
 //Material
 uniform sampler2D materialDiffuse;
 uniform sampler2D materialSpecular;
 uniform int materialShininess;
+uniform int transparency;
 
 //Light
 uniform Light lights[MAX_LIGHTS];
@@ -80,7 +86,7 @@ vec3 CalculateDirLightContribution(Light light, float attenuation, vec3 normWorl
 
     vec3 normLightDirection = normalize(light.direction);
 
-    float diff = max(dot(normWorldNormal, normLightDirection), 0);
+    float diff = max(dot(normWorldNormal, -normLightDirection), 0);
 
     vec3 diffuseComponent = diff*lightDiff*fragDiffuse;
     vec3 ambientComponent = lightAmbient*fragDiffuse;
@@ -90,7 +96,7 @@ vec3 CalculateDirLightContribution(Light light, float attenuation, vec3 normWorl
     float spec = pow(max(0, dot(reflectDirLight, fragToEye)), materialShininess);
     vec3 specularComponent = lightSpecular*spec*vec3(texture(materialSpecular, uvFrag));
 
-    return lightSpecular + specularComponent + diffuseComponent;
+    return ambientComponent + specularComponent + diffuseComponent;
 
 }
 
@@ -107,7 +113,7 @@ vec3 CalculateSpotLightContribution(Light light, float attenuation, vec3 normWor
     vec3 lightSpecular = light.color * light.specularFactor;
 
 
-    float diff = max(dot(normWorldNormal, -normLightDirection), 0);
+    float diff = max(dot(normWorldNormal, normFragToLight), 0);
 
     vec3 diffuseComponent = diff*lightDiff*fragDiffuse;
     vec3 ambientComponent = lightAmbient*fragDiffuse;
@@ -116,7 +122,7 @@ vec3 CalculateSpotLightContribution(Light light, float attenuation, vec3 normWor
     float spec = pow(max(0, dot(reflectDirLight, fragToEye)), materialShininess);
     vec3 specularComponent = lightSpecular*spec* vec3(texture(materialSpecular, uvFrag));
 
-    return lightSpecular + specularComponent + diffuseComponent;
+    return ambientComponent + specularComponent + diffuseComponent;
 
 }
 
@@ -125,12 +131,17 @@ vec3 CalculateSpotLightContribution(Light light, float attenuation, vec3 normWor
 
 void main() {
     //Enums for lightType
-    vec3 fragDiffuse = vec3(texture(materialDiffuse, uvFrag));
+    vec4 fragDiffuse = texture(materialDiffuse, uvFrag);
+
+
 
     vec3 normWorldNormal = normalize(worldNormal);
 
 
-    vec3 finalFragColor = vec3(0.0);
+    if (transparency == OPAQUE){
+        fragDiffuse.a = 1.0f;
+    }
+    vec4 finalFragColor = vec4(0.0f, 0.0f, 0.0f, fragDiffuse.a);
 
     vec3 fragToEye = normalize(eyePosition - worldFragPos);
 
@@ -141,20 +152,20 @@ void main() {
         float distance = length(lights[i].position - worldFragPos);
         float attenuation = 1.0/(lights[i].attConstant + lights[i].attLinear*distance + lights[i].attQuadratic * distance*distance);
         if (lights[i].type == POINT_LIGHT){
-            finalFragColor += CalculatePointLightContribution(lights[i], attenuation, normWorldNormal, fragDiffuse, fragToEye);
+            finalFragColor += vec4(CalculatePointLightContribution(lights[i], attenuation, normWorldNormal, vec3(fragDiffuse), fragToEye), 0.0f);
         }
         else if (lights[i].type == DIRECTIONAL_LIGHT && amountDirLights < maxDirLights){
-            finalFragColor += CalculateDirLightContribution(lights[i], attenuation, normWorldNormal, fragDiffuse, fragToEye);
+            finalFragColor += vec4(CalculateDirLightContribution(lights[i], attenuation, normWorldNormal, vec3(fragDiffuse), fragToEye), 0.0f);
             amountDirLights += 1;
         }
         else if (lights[i].type == SPOT_LIGHT){
-            finalFragColor+= CalculateSpotLightContribution(lights[i], attenuation, normWorldNormal, fragDiffuse, fragToEye);
+            finalFragColor+= vec4(CalculateSpotLightContribution(lights[i], attenuation, normWorldNormal, vec3(fragDiffuse), fragToEye), 0.0f);
 
         }
 
     }
 
     //Output
-    FragColor = vec4(finalFragColor,1.0);
+    FragColor = finalFragColor;
 
 }

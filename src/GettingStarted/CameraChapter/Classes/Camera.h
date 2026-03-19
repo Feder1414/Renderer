@@ -8,6 +8,7 @@
 #include "gtc/type_ptr.hpp"
 
 #include "MouseHandler.h"
+#include "../../../Lighting/LightChapter/Classes/BV/Frustum.h"
 
 
 class Camera
@@ -20,15 +21,18 @@ private:
     float m_fov = 45.0f;;
     float m_fovLowerLimit = 1.0f;
     float m_fovUpperLimit = 45.0f;
+    Frustum frustum;
 
     MouseHandler* m_mouseHandler;
 
     glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
     float m_movementSPeed = 0.5f;
 
+    void ConstructFrustrum();
+
 public:
-    glm::vec3 GetPosition() const {return m_position;}
-    glm::vec3 GetForward() const {return m_forward;}
+    glm::vec3 GetPosition() const { return m_position; }
+    glm::vec3 GetForward() const { return m_forward; }
 
     void ProcessMovement(GLFWwindow* window, float deltaTime);
 
@@ -37,7 +41,7 @@ public:
         m_mouseHandler = mouseHandler;
     }
 
-    static void CalculateForwardVector(GLFWwindow* window, double posx, double posy);
+    static void UpdateCamRotation(GLFWwindow* window, double posx, double posy);
 
     glm::mat4 GetViewMatrix() const;
 

@@ -5,6 +5,8 @@
 #include "Scene.h"
 #include "uuid.h"
 #include "UuidGenerator.h"
+#include "../Components/Light.h"
+#include "../Components/Camera.h"
 
 
 void Scene::AddEntity(std::unique_ptr<Entity> entity)
@@ -19,6 +21,10 @@ void Scene::AddEntity(std::unique_ptr<Entity> entity)
     if (entity->GetComponent<Camera>())
     {
         m_cameras.push_back(entity.get());
+    }
+    if (!entity->GetParent())
+    {
+        m_rootEntities.push_back(entity.get());
     }
     m_entities.push_back(std::move(entity));
 }

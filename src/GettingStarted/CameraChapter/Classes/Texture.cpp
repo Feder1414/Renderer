@@ -13,13 +13,13 @@ class Shader;
 
 void Texture::LoadImage(std::string filePath)
 {
-    unsigned char* data = stbi_load(filePath.c_str(), &m_widht, &m_height, &m_numberChannels, 0);
+    unsigned char* data = stbi_load(filePath.c_str(), &m_width, &m_height, &m_numberChannels, 0);
     const bool hasAlphaChannel
         =
         m_numberChannels == 4;
     if (data)
     {
-        GenerateTexture(data, hasAlphaChannel);
+        GenerateTextureFromImage(data, hasAlphaChannel);
     }
     else
     {
@@ -29,7 +29,7 @@ void Texture::LoadImage(std::string filePath)
     stbi_image_free(data);
 }
 
-void Texture::GenerateTexture(const unsigned char* data, bool hasAlphaChannel)
+void Texture::GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel)
 {
     if (!textureSlotsInitialized)
     {
@@ -71,7 +71,7 @@ void Texture::GenerateTexture(const unsigned char* data, bool hasAlphaChannel)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_widht, m_height, 0, hasAlphaChannel ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE,
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, m_width, m_height, 0, hasAlphaChannel ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE,
                  data);
     glGenerateMipmap(GL_TEXTURE_2D);
 }

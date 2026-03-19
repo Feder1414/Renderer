@@ -7,17 +7,11 @@
 
 #include <memory>
 
-#include "Engine.h"
 #include "Event.h"
-#include "Window.h"
-struct GLFWwindow;
-class Window;
+#include "glfw3.h"
 
-struct WindowContext
-{
-    Window* window;
-    Engine* engine;
-};
+struct GLFWwindow;
+class Engine;
 
 class Window
 {
@@ -26,7 +20,9 @@ public:
     unsigned int GetWidth() const { return m_width; }
     unsigned int GetHeight() const { return m_height; }
 
-    Event<int, int> viewPortSizeChange;
+    Event<int, int> m_OnViewPortSizeChange;
+    Event<double, double> m_OnMouseMovement;
+    Event<double, double> m_OnMouseScroll;
 
     void PollEvents() const;
     void SwapBuffers() const;
@@ -35,6 +31,8 @@ public:
     double GetTime() const;
     bool WindowShouldClose() const;
     GLFWwindow* GetGLFWWindow() { return m_glfwWindow; }
+
+
 
 private:
     unsigned int m_width = 1280;
@@ -45,8 +43,14 @@ private:
     bool m_cursorDisabled = true;
 
 
+    bool m_tabPrevPressed = false;
+    bool m_homePrevPressed = false;
+
+
     static void OnViewportSizeChanged(GLFWwindow* window, int width, int height);
     static void OnErrorWindow(int error, const char* description);
+    static void OnMouseMove(GLFWwindow* glfwWindow, double xpos, double ypos);
+    static void OnMouseScroll(GLFWwindow* glfwWindow, double xpos, double ypos);
 };
 
 

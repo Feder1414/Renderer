@@ -19,7 +19,7 @@ struct TextureInfo
 class Texture
 {
 private:
-    int m_widht, m_height, m_numberChannels, m_textureSlot;
+    int m_width, m_height, m_numberChannels, m_textureSlot;
     std::string m_samplerName;
     inline static bool textureSlotsInitialized;
     unsigned int m_texture;
@@ -30,7 +30,7 @@ private:
 public:
     explicit Texture(TextureInfo texture_info);
     void LoadImage(std::string filePath);
-    void GenerateTexture(const unsigned char* data, bool hasAlphaChannel);
+    void GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel);
     void BindTexture() const;
     static void InitializeTextureSlots();
 };

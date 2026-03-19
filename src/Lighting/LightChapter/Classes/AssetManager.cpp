@@ -4,6 +4,8 @@
 
 #include "AssetManager.h"
 
+#include "Texture.h"
+
 std::unordered_map<std::string, std::weak_ptr<Mesh>> AssetManager::m_Meshes = {};
 std::unordered_map<std::string, std::weak_ptr<Material>> AssetManager::m_Materials = {};
 std::unordered_map<std::string, std::weak_ptr<Texture>> AssetManager::m_Textures = {};
@@ -58,8 +60,9 @@ std::shared_ptr<Texture> AssetManager::GetTexture(const std::string& textureName
     return m_Textures[textureName].lock();
 }
 
-std::shared_ptr<Texture> AssetManager::AddTexture(const std::string& texturePath, std::shared_ptr<Texture> texture)
+std::shared_ptr<Texture> AssetManager::AddTexture(std::shared_ptr<Texture> texture)
 {
+    auto texturePath = texture->GetFilePath();
     auto cacheTexture = m_Textures.find(texturePath);
     if (cacheTexture == m_Textures.end())
     {

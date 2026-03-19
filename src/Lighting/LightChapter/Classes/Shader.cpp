@@ -38,62 +38,113 @@ namespace
         {"lightDiffuseFactor", ShaderBasicProperties::LightDiffuseFactor},
         {"lightSpecularFactor", ShaderBasicProperties::LightSpecularFactor},
         {"lights", ShaderBasicProperties::Lights},
-        {"amountLights", ShaderBasicProperties::AmountLights}
+        {"borderColor", ShaderBasicProperties::BorderColor},
+        {"nearPlane", ShaderBasicProperties::NearPlane},
+        {"farPlane", ShaderBasicProperties::FarPlane},
+        {"fogDensity", ShaderBasicProperties::FogDensity},
+        {"fogEffect", ShaderBasicProperties::FogEffect},
+        {"fogColor", ShaderBasicProperties::FogColor},
+        {"aabbExtents", ShaderBasicProperties::AABBExtents},
+        {"bbCenter", ShaderBasicProperties::BBCenter},
+        {"renderedScene", ShaderBasicProperties::RenderedScene},
+        {"renderedWidth", ShaderBasicProperties::RenderedSceneWidth},
+        {"applyKernel", ShaderBasicProperties::ApplyKernel},
+        {"kernel[0]", ShaderBasicProperties::Kernel}
 
 
     };
 }
 
 
-Shader::Shader(const char* vertexPath, const char* fragmentPath)
+Shader::Shader(const char* vertexPath, const char* fragmentPath, const char* geoPath)
 {
-    unsigned int vertexShader, fragmentShader;
-    int success;
-    char infoLog[512];
+    m_vertexShaderPath = std::string(vertexPath);
+    m_fragmentShaderPath = std::string(fragmentPath);
 
-    m_vertexShader = glCreateShader(GL_VERTEX_SHADER);
+
     auto vertexShaderSource = LoadShader(vertexPath);
-    std::cout << "Vertex Shader Source" << vertexShaderSource << std::endl;
-    auto vertexShaderCstr = vertexShaderSource.c_str();
-
-    glShaderSource(m_vertexShader, 1, &vertexShaderCstr, NULL);
-    glCompileShader(m_vertexShader);
-
-    glGetShaderiv(m_vertexShader, GL_COMPILE_STATUS, &success);
-    if (!success)
-    {
-        glGetShaderInfoLog(m_vertexShader, 512, NULL, infoLog);
-        std::cout << infoLog << std::endl;
-    }
-
-    m_fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     auto fragmentShaderSource = LoadShader(fragmentPath);
-    std::cout << "Fragment shader source" << fragmentShaderSource << std::endl;
-    auto fragmentShaderCstr = fragmentShaderSource.c_str();
-    glShaderSource(m_fragmentShader, 1, &fragmentShaderCstr, NULL);
-    glCompileShader(m_fragmentShader);
-    glGetShaderiv(m_fragmentShader, GL_COMPILE_STATUS, &success);
 
-    if (!success)
-    {
-        glGetShaderInfoLog(m_fragmentShader, 512, NULL, infoLog);
-        std::cout << infoLog << std::endl;
-    }
+    CompileShader(m_vertexShader, vertexShaderSource, GL_VERTEX_SHADER);
+    CompileShader(m_fragmentShader, fragmentShaderSource, GL_FRAGMENT_SHADER);
+
 
     m_shaderProgram = glCreateProgram();
     glAttachShader(m_shaderProgram, m_vertexShader);
     glAttachShader(m_shaderProgram, m_fragmentShader);
-    glLinkProgram(m_shaderProgram);
 
+    if (geoPath)
+    {
+        m_geoPath = std::string(geoPath);
+        auto geoSourceCode = LoadShader(geoPath);
+        CompileShader(m_geoShader, geoSourceCode, GL_GEOMETRY_SHADER);
+        glAttachShader(m_shaderProgram, m_geoShader);
+    }
+
+    int success;
+    char infoLog[512];
+    glLinkProgram(m_shaderProgram);
     glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &success);
+
 
     if (!success)
     {
         glGetProgramInfoLog(m_shaderProgram, 512, NULL, infoLog);
-        std::cout << infoLog << std::endl;
+        std::cerr << infoLog << std::endl;
     }
     CreateShaderResources();
+    m_shaderKey = m_vertexShaderPath + m_fragmentShaderPath + m_geoPath;
 }
+
+Shader::Shader(const ShaderSource& vertexSource, const ShaderSource& fragmentSource,
+               std::optional<ShaderSource> geoSource)
+{
+    std::string vertexSourceCode = GetShaderSourceCode(vertexSource, m_vertexShaderPath);
+    std::string fragmentSourceCode = GetShaderSourceCode(fragmentSource, m_fragmentShaderPath);
+
+    CompileShader(m_vertexShader, vertexSourceCode, GL_VERTEX_SHADER);
+    CompileShader(m_fragmentShader, fragmentSourceCode, GL_FRAGMENT_SHADER);
+
+
+    m_shaderProgram = glCreateProgram();
+    glAttachShader(m_shaderProgram, m_vertexShader);
+    glAttachShader(m_shaderProgram, m_fragmentShader);
+
+    if (geoSource)
+    {
+        std::string geoSourceCode = GetShaderSourceCode(geoSource.value(), m_geoPath);
+        CompileShader(m_geoShader, geoSourceCode, GL_GEOMETRY_SHADER);
+        glAttachShader(m_shaderProgram, m_geoShader);
+    }
+
+    int success;
+    char infoLog[512];
+    glLinkProgram(m_shaderProgram);
+    glGetProgramiv(m_shaderProgram, GL_LINK_STATUS, &success);
+
+
+    if (!success)
+    {
+        glGetProgramInfoLog(m_shaderProgram, 512, NULL, infoLog);
+        std::cerr << infoLog << std::endl;
+    }
+    CreateShaderResources();
+    m_shaderKey = m_vertexShaderPath + m_fragmentShaderPath + m_geoPath;
+}
+
+std::string Shader::GetShaderSourceCode(const ShaderSource& shaderSource, std::string& memberPath)
+{
+    memberPath = "Dynamically generated";
+    std::string sourceCode = shaderSource.source;
+
+    if (!shaderSource.isSourceCode)
+    {
+        sourceCode = LoadShader(shaderSource.source.c_str());
+        m_vertexShaderPath = shaderSource.source;
+    }
+    return sourceCode;
+}
+
 
 void Shader::CreateShaderResources()
 {
@@ -141,6 +192,7 @@ void Shader::CreateShaderResources()
 
         auto key = uniformNameOriginal;
 
+
         std::string stringInsertedShaderResource = std::format("Created Shader Resource with name {} and type {}",
                                                                key, shaderResource.type);
 
@@ -165,7 +217,7 @@ std::string Shader::LoadShader(const char* shaderPath) const
 
     if (!shaderSource.is_open())
     {
-        std::cout << "File not found: " << shaderPath << std::endl;
+        std::cerr << "File not found: " << shaderPath << std::endl;
     }
 
     try
@@ -176,7 +228,7 @@ std::string Shader::LoadShader(const char* shaderPath) const
     }
     catch (std::ifstream::failure e)
     {
-        std::cout << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ" << std::endl;
+        std::cerr << "ERROR::SHADER::FILE_NOT_SUCCESSFULLY_READ" << std::endl;
     }
     return "";
 }
@@ -210,41 +262,46 @@ void Shader::Use() const
 
 void Shader::setVariableBool(const std::string& variableName, bool value, int uniformLocation) const
 {
-    glUniform1i(uniformLocation, value);
+    glProgramUniform1i(m_shaderProgram, uniformLocation, value);
 }
 
 void Shader::setVariableInt(const std::string& variableName, int value, int uniformLocation) const
 {
-
-
     glProgramUniform1i(m_shaderProgram, uniformLocation, value);
-
 }
 
 void Shader::setVariableFloat(const std::string& variableName, float value, int uniformLocation) const
 {
-    glUniform1f(uniformLocation, value);
+    glProgramUniform1f(m_shaderProgram, uniformLocation, value);
 }
 
 void Shader::setVariableMatrix4(const std::string& variableName, glm::mat4 value, int uniformLocation) const
 {
-    glUniformMatrix4fv(uniformLocation, 1, GL_FALSE, glm::value_ptr(value));
+    glProgramUniformMatrix4fv(m_shaderProgram, uniformLocation, 1, GL_FALSE, glm::value_ptr(value));
 }
 
 void Shader::setVariableMatrix3(const std::string& variableName, glm::mat3 value, int uniformLocation)
 {
-    glUniformMatrix3fv(uniformLocation, 1, GL_FALSE, glm::value_ptr(value));
+    glProgramUniformMatrix3fv(m_shaderProgram,
+                              uniformLocation,
+                              1,
+                              GL_FALSE,
+                              glm::value_ptr(value));
+}
+
+void Shader::setVariableFloatArray(const std::string& variableName, const float* value, int count, int uniformLocation)
+{
+    glProgramUniform1fv(m_shaderProgram, uniformLocation, count, value);
 }
 
 
 void Shader::setVariableVec3(const std::string& variableName, glm::vec3 value, int uniformLocation) const
 {
-    glUniform3fv(uniformLocation, 1, glm::value_ptr(value));
+    glProgramUniform3fv(m_shaderProgram, uniformLocation, 1, glm::value_ptr(value));
 }
 
-void Shader::setUniformPerName(const std::string& variableName, UniformValue& uniformValue)
+void Shader::setUniformPerName(const std::string& variableName, const UniformValue& uniformValue)
 {
-
     auto it = m_uniformNameToResource.find(variableName);
     if (it == m_uniformNameToResource.end() || it->second.location == -1)
     {
@@ -281,6 +338,7 @@ void Shader::setUniformPerName(const std::string& variableName, UniformValue& un
         }
         else if constexpr (std::is_same_v<T, bool>)
         {
+            this->setVariableBool(uniformName, x, shaderResource.location);
         }
         else if constexpr (std::is_same_v<T, glm::vec3>)
         {
@@ -297,10 +355,19 @@ void Shader::setUniformPerName(const std::string& variableName, UniformValue& un
         else if constexpr (std::is_same_v<T, Texture*> || std::is_same_v<T, std::shared_ptr<Texture>>)
         {
             this->setVariableInt(uniformName, x->GetTextureSlot(), shaderResource.location);
-
+        }
+        else if constexpr (std::is_same_v<T, std::array<float, 9>>)
+        {
+            this->setVariableFloatArray(uniformName, x.data(), 9, shaderResource.location);
         }
     }, uniformValue);
 }
+
+void Shader::setUniformPerName(ShaderBasicProperties shaderBasicProperty, const UniformValue& uniformValue)
+{
+    setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderBasicProperty), uniformValue);
+}
+
 
 std::string Shader::ShaderPropertyEnumToStr(ShaderBasicProperties shaderProperty)
 {
@@ -360,5 +427,79 @@ std::string Shader::ShaderPropertyEnumToStr(ShaderBasicProperties shaderProperty
     {
         return "amountLights";
     }
+    if (shaderProperty == ShaderBasicProperties::BorderColor)
+    {
+        return "borderColor";
+    }
+    if (shaderProperty == ShaderBasicProperties::NearPlane)
+    {
+        return "nearPlane";
+    }
+    if (shaderProperty == ShaderBasicProperties::FarPlane)
+    {
+        return "farPlane";
+    }
+    if (shaderProperty == ShaderBasicProperties::FogDensity)
+    {
+        return "fogDensity";
+    }
+    if (shaderProperty == ShaderBasicProperties::FogColor)
+    {
+        return "fogColor";
+    }
+    if (shaderProperty == ShaderBasicProperties::FogEffect)
+    {
+        return "fogEffect";
+    }
+    if (shaderProperty == ShaderBasicProperties::BBCenter)
+    {
+        return "bbCenter";
+    }
+    if (shaderProperty == ShaderBasicProperties::AABBExtents)
+    {
+        return "aabbExtents";
+    }
+    if (shaderProperty == ShaderBasicProperties::RenderedScene)
+    {
+        return "renderedScene";
+    }
+    if (shaderProperty == ShaderBasicProperties::RenderedSceneWidth)
+    {
+        return "renderedSceneWidth";
+    }
+    if (shaderProperty == ShaderBasicProperties::RenderedSceneHeight)
+    {
+        return "renderedSceneHeight";
+    }
+    if (shaderProperty == ShaderBasicProperties::ApplyKernel)
+    {
+        return "applyKernel";
+    }
+    if (shaderProperty == ShaderBasicProperties::Kernel)
+    {
+        return "kernel[0]";
+    }
     return "Unkown property";
+}
+
+void Shader::CompileShader(unsigned int& shaderId, const std::string& shaderSourceCode, GLenum shaderType)
+{
+    int success;
+
+    shaderId = glCreateShader(shaderType);
+    auto shaderSourceCStr = shaderSourceCode.c_str();
+    std::cout << "Shader source code: " << shaderSourceCode << std::endl;
+    glShaderSource(shaderId, 1, &shaderSourceCStr, NULL);
+    glCompileShader(shaderId);
+    glGetShaderiv(shaderId, GL_COMPILE_STATUS, &success);
+
+
+    char infoLog[512];
+
+
+    if (!success)
+    {
+        glGetShaderInfoLog(shaderId, 512, NULL, infoLog);
+        std::cerr << infoLog << std::endl;
+    }
 }

@@ -413,7 +413,7 @@ int main()
     camera.SetMouseHandler(&mouseHandler);
 
     glfwSetWindowUserPointer(window, &camera);
-    glfwSetCursorPosCallback(window, Camera::CalculateForwardVector);
+    glfwSetCursorPosCallback(window, Camera::UpdateCamRotation);
     glfwSetScrollCallback(window, Camera::UpdateFOV);
 
 

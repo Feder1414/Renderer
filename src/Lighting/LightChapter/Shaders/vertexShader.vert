@@ -20,6 +20,7 @@ void main() {
 
     gl_Position = projectionTransform * viewTransform * worldPos;
 
+
     fragCol = vertexCol;
     worldFragPos = worldPos.xyz;
     worldNormal = normalize(normalMatrix * normal);

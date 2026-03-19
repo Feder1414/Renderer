@@ -12,6 +12,7 @@
 #include "AssetManager.h"
 #include "Entity.h"
 #include "Scene.h"
+#include "BV/AABB.h"
 
 AssimpLoader::AssimpLoader(Scene* scene, const std::string& filePath,
                            std::shared_ptr<VertexLayout> targetVertexLayout)
@@ -26,7 +27,8 @@ Entity* AssimpLoader::ImportScene()
 {
     Assimp::Importer importer;
     const aiScene* aiScene = importer.ReadFile(m_filePath.c_str(),
-                                               aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_FlipUVs);
+                                               aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_FlipUVs |
+                                               aiProcess_GenBoundingBoxes | aiProcess_GenSmoothNormals);
     if (!aiScene || aiScene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !aiScene->mRootNode)
     {
         std::cout << "ERROR ASSIMP" << importer.GetErrorString() << std::endl;
@@ -81,23 +83,40 @@ void AssimpLoader::ProcessNode(aiNode* aiNode, const aiScene* aiScene, Entity* p
 
             std::vector<std::shared_ptr<Material>> materials = {};
             //ProcessSubmeshes
+            glm::vec3 minAABB;
+            glm::vec3 maxAABB;
             for (unsigned int meshIndex = 0; meshIndex < aiNode->mNumMeshes; meshIndex++)
             {
                 auto meshSceneIndex = aiNode->mMeshes[meshIndex];
                 auto aiMesh = aiScene->mMeshes[meshSceneIndex];
+                auto aiAABB = aiMesh->mAABB;
+                if (meshIndex == 0)
+                {
+                    minAABB = glm::vec3(aiAABB.mMin.x, aiAABB.mMin.y, aiAABB.mMin.z);
+                    maxAABB = glm::vec3(aiAABB.mMax.x, aiAABB.mMax.y, aiAABB.mMax.z);
+                }
+                minAABB.x = std::min(aiAABB.mMin.x, minAABB.x);
+                minAABB.y = std::min(aiAABB.mMin.y, minAABB.y);
+                minAABB.z = std::min(aiAABB.mMin.z, minAABB.z);
+                maxAABB.x = std::max(aiAABB.mMax.x, maxAABB.x);
+                maxAABB.y = std::max(aiAABB.mMax.y, maxAABB.y);
+                maxAABB.z = std::max(aiAABB.mMax.z, maxAABB.z);
 
 
                 ProcessSubmesh(aiMesh, meshName, vertexLayout, vertexData, indexData, submeshes, materials);
             }
             m_activeColorSets.clear();
             m_activeUvSets.clear();
-            mesh = std::make_shared<Mesh>(vertexData, indexData, vertexLayout, submeshes, materials);
+            mesh = std::make_shared<Mesh>(meshName, vertexData, indexData, vertexLayout, submeshes, materials);
             if (m_targetVertexLayout)
             {
                 mesh->SetTargetVertexLayout(m_targetVertexLayout);
             }
+            std::unique_ptr<AABB> aabb = std::make_unique<AABB>(minAABB, maxAABB);
+            mesh->SetBoundingVolume(std::move(aabb));
             AssetManager::AddMesh(meshName, mesh);
         }
+
 
         std::unique_ptr<ModelRenderInfo> renderInfo = std::make_unique<ModelRenderInfo>(mesh);
 
@@ -189,7 +208,7 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
     std::shared_ptr<Material> material = AssetManager::GetMaterial(materialName);
     if (!material)
     {
-        material = std::make_shared<Material>();
+        material = std::make_shared<Material>(materialName);
 
         std::vector<std::shared_ptr<Texture>> baseColTextures;
         std::vector<std::shared_ptr<Texture>> specTextures;
@@ -202,6 +221,16 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
 
         unsigned specLayers = aiMaterial->GetTextureCount(aiTextureType_SPECULAR);
         auto amountTotalTextures = 0;
+
+        float shininess;
+
+        if (aiGetMaterialFloat(aiMaterial, AI_MATKEY_SHININESS, &shininess) != AI_SUCCESS)
+        {
+            shininess = 32.0f;
+        }
+
+        material->SetProperty(MaterialPropertyEnum::Shininess, static_cast<int>(shininess));
+
 
         // for (unsigned int i = 1; i < aiTextureType_GLTF_METALLIC_ROUGHNESS + 1; i++)
         // {
@@ -223,6 +252,10 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
         {
             std::cout << "The model with path " << m_filePath << " have the amount of " << std::to_string(specLayers) <<
                 " spec layers. Only one layer is supported" << std::endl;
+
+            ProcessTexture(aiMaterial, aiTextureType_SPECULAR,
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Specular), specTextures);
+            material->SetProperty(MaterialPropertyEnum::Specular, specTextures[0]);
         }
 
 
@@ -251,11 +284,9 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
 
 
         AssetManager::AddMaterial(materialName, material);
-
     }
 
     materials.push_back(material);
-
 }
 
 std::shared_ptr<VertexLayout> AssimpLoader::GetVertexLayout(aiMesh* aiMesh)
@@ -374,8 +405,7 @@ void AssimpLoader::ProcessTexture(aiMaterial* aiMaterial, aiTextureType aiTextur
         {
             texture = std::make_shared<Texture>();
             texture->LoadImageFromFile(texturePath);
-            AssetManager::AddTexture(texturePath, texture);
-
+            AssetManager::AddTexture(texture);
         }
 
         textures.push_back(texture);
