@@ -10,6 +10,8 @@
 #include <windows.h>
 #include "OpenGL.h"
 
+class Buffer;
+
 enum class VertexAttributeType
 {
     BOOL,
@@ -136,6 +138,8 @@ public:
     }
 
     unsigned int GetVertexAttribLocation(const std::string& attribName) const;
+
+    std::unordered_map<BindingIndex, Buffer> CreateVertexBufferObjects();
     //const auto& GetAttribNameToLocation() { return m_attribNameToLocation; }
 };
 

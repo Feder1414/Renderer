@@ -240,6 +240,8 @@ void Renderer::RenderScene()
         }
     }
 
+    SkyboxPass();
+
     // Draw semitransparent
     glDepthMask(GL_FALSE);
     glEnable(GL_BLEND);
@@ -958,10 +960,15 @@ void Renderer::SkyboxPass()
     auto currCam = m_currScene->GetActiveCamera()->GetComponent<Camera>();
     auto skyboxShader = ShaderManager::GetDefaultShader(DefaultShader::Skybox);
     skyboxShader->Use();
-    skyboxShader->setUniformPerName(ShaderBasicProperties::ViewTransform, currCam->GetViewMatrix());
+    skyboxShader->setUniformPerName(ShaderBasicProperties::ViewTransform,
+                                    glm::mat4(glm::mat3(currCam->GetViewMatrix())));
     skyboxShader->setUniformPerName(ShaderBasicProperties::ProjectionTransform,
                                     currCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height)));
+    skyboxShader->setUniformPerName(ShaderBasicProperties::SkyBox, cubeMapTexture);
 
+    glBindVertexArray(skyboxMesh->GetVao());
+    glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, nullptr);
+    glDepthFunc(GL_LESS);
 }
 
 

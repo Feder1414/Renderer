@@ -86,6 +86,8 @@ add_executable(LightChapter main.cpp
         Classes/RenderBuffer.h
         Classes/Skybox.cpp
         Classes/Skybox.h
+        Classes/Rendering/Buffer.cpp
+        Classes/Rendering/Buffer.h
 
 )
 

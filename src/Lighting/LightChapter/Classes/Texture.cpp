@@ -165,6 +165,7 @@ void Texture::LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePat
 
     glCreateTextures(GL_TEXTURE_CUBE_MAP, 1, &m_texture);
     auto mipLevels = 1;
+    stbi_set_flip_vertically_on_load(false);
     for (int i = 0; i < facesFilePath.size(); i++)
     {
         unsigned char* data = stbi_load(facesFilePath[i].c_str(), &width, &height, &nChannels, 0);
@@ -192,6 +193,7 @@ void Texture::LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePat
         glTextureParameteri(m_texture, GL_TEXTURE_WRAP_T, TexWrapToGlWrap(m_texDesc.vWrapping));
         glTextureParameteri(m_texture, GL_TEXTURE_MIN_FILTER, TexFilterToGlFilter(m_texDesc.minFilter));
         glTextureParameteri(m_texture, GL_TEXTURE_MAG_FILTER, TexFilterToGlFilter(m_texDesc.magFilter));
+
     }
 }
 

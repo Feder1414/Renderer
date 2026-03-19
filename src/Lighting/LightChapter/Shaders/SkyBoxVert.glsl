@@ -8,7 +8,7 @@ uniform mat4 viewTransform;
 uniform mat4 projectionTransform;
 
 void main() {
-    vec4 projPos = projectionTransform*viewMatrix * vec4(position, 1.0f);
+    vec4 projPos = projectionTransform*viewTransform * vec4(position, 1.0f);
     gl_Position = projPos.xyww;
     texCoord = position;
 
