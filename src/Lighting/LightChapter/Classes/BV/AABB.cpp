@@ -3,29 +3,65 @@
 //
 
 #include "AABB.h"
+#include "AABB.h"
+#include "AABB.h"
 
 #include "Entity.h"
 #include "Frustum.h"
 
 bool AABB::IsOnFrustum(const Frustum& frustum)
 {
-    auto isOnDownPlane = IsOnForwardPlane(frustum.m_down);
-    auto isOnTopPlane = IsOnForwardPlane(frustum.m_top);
-    auto isOnRightPlane = IsOnForwardPlane(frustum.m_right);
-    auto isOnLeftPlane = IsOnForwardPlane(frustum.m_left);
-    auto isOnNearPlane = IsOnForwardPlane(frustum.m_near);
-    auto isOnFarPlane = IsOnForwardPlane(frustum.m_far);
-
-    //return true;
-    return isOnDownPlane && isOnTopPlane && isOnRightPlane && isOnLeftPlane && isOnNearPlane && isOnFarPlane;
-
-    return isOnFarPlane && isOnNearPlane;
+    if (!IsOnForwardPlane(frustum.m_down)) return false;
+    if (!IsOnForwardPlane(frustum.m_top)) return false;
+    if (!IsOnForwardPlane(frustum.m_right)) return false;
+    if (!IsOnForwardPlane(frustum.m_left)) return false;
+    if (!IsOnForwardPlane(frustum.m_near)) return false;
+    if (!IsOnForwardPlane(frustum.m_far)) return false;
+    return true;
+    // auto isOnDownPlane = IsOnForwardPlane(frustum.m_down);
+    // auto isOnTopPlane = IsOnForwardPlane(frustum.m_top);
+    // auto isOnRightPlane = IsOnForwardPlane(frustum.m_right);
+    // auto isOnLeftPlane = IsOnForwardPlane(frustum.m_left);
+    // auto isOnNearPlane = IsOnForwardPlane(frustum.m_near);
+    // auto isOnFarPlane = IsOnForwardPlane(frustum.m_far);
+    //
+    // //return true;
+    // return isOnDownPlane && isOnTopPlane && isOnRightPlane && isOnLeftPlane && isOnNearPlane && isOnFarPlane;
+    //
+    // return isOnFarPlane && isOnNearPlane;
 }
 
 std::unique_ptr<IBoundingVolume> AABB::CalculateWorldBB(Entity* entity)
 {
+    float newIy;
+
+    float newIx;
+    float newIz;
 
 
+    glm::vec3 newCenter;
+    TransformToWorld(entity, newCenter, newIx, newIy, newIz);
+
+
+    return std::move(std::make_unique<AABB>(glm::vec3(newCenter), newIx, newIy, newIz));
+}
+
+AABB AABB::CalculateWorldAABB(Entity* entity) const
+{
+    float newIy;
+
+    float newIx;
+    float newIz;
+
+
+    glm::vec3 newCenter;
+    TransformToWorld(entity, newCenter, newIx, newIy, newIz);
+
+    return AABB(glm::vec3(newCenter), newIx, newIy, newIz);
+}
+
+void AABB::TransformToWorld(Entity* entity, glm::vec3& newCenter, float& newIx, float& newIy, float& newIz) const
+{
     auto globalMat = entity->GetWorldMat();
 
     auto right = glm::vec3(globalMat[0]) * m_extents.x;
@@ -37,18 +73,16 @@ std::unique_ptr<IBoundingVolume> AABB::CalculateWorldBB(Entity* entity)
     auto rightGlobal = glm::vec3(1.0f, 0.0f, 0.0f);
     auto forwardGlobal = glm::vec3(0.0f, 0.0f, 1.0f);
 
-    const float newIy = std::abs(glm::dot(upGlobal, up)) +
+    newIy = std::abs(glm::dot(upGlobal, up)) +
         std::abs(glm::dot(upGlobal, right)) + std::abs(glm::dot(upGlobal, forward));
-    const float newIx = std::abs(glm::dot(rightGlobal, up)) +
+    newIx = std::abs(glm::dot(rightGlobal, up)) +
         std::abs(glm::dot(rightGlobal, right)) + std::abs(glm::dot(rightGlobal, forward));
-    const float newIz = std::abs(glm::dot(forwardGlobal, up)) +
+    newIz = std::abs(glm::dot(forwardGlobal, up)) +
         std::abs(glm::dot(forwardGlobal, right)) + std::abs(glm::dot(forwardGlobal, forward));
 
-    auto newCenter = entity->GetWorldMat() * glm::vec4(m_center, 1.0f);
+    newCenter = glm::vec3(entity->GetWorldMat() * glm::vec4(m_center, 1.0f));
+};
 
-
-    return std::move(std::make_unique<AABB>(glm::vec3(newCenter), newIx, newIy, newIz));
-}
 
 bool AABB::IsOnForwardPlane(const Plane& plane)
 {

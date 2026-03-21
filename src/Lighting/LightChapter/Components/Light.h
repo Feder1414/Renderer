@@ -39,6 +39,30 @@ enum class LightProperty
     LightType
 };
 
+
+struct LightGPU
+{
+    glm::vec3 color;
+    float pad;
+
+    glm::vec3 direction;
+    float pad1;
+
+    glm::vec3 position;
+
+    float diffuseFactor;
+    float ambientFactor;
+    float specularFactor;
+
+    float innerConeAngle;
+    float outerConeAngle;
+
+    float attConstant;
+    float attLinear;
+    float attQuadratic;
+    int type;
+};
+
 class Light final : public IComponent, public ComponentPropertiesMetadata<Light>
 {
 public:
@@ -98,6 +122,8 @@ public:
     }
 
     void SetComponentMetadata() override;
+
+    [[nodiscard]] LightGPU GetLightGPU() const;
 
 private:
     float m_innerConeAngle = glm::radians(35.0f);

@@ -8,11 +8,14 @@
 #include <vector>
 #include <glad/glad.h>
 
+#include "AABB.h"
 #include "fwd.hpp"
 #include "BV/IBoundingVolume.h"
 #include "VertexLayout.h"
+#include "Rendering/Buffer.h"
 
 
+class AABB;
 class IBoundingVolume;
 class Shader;
 class Material;
@@ -52,17 +55,15 @@ private:
 
     bool m_useConvertedVertexData = false;
 
-    unsigned int m_vao, m_vbo, m_ebo;
 
+    std::unique_ptr<Buffer> m_vao, m_ebo = nullptr;
+    std::unordered_map<BindingIndex, std::unique_ptr<Buffer>> m_bindingIndexToVbo = {};
 
-    std::unordered_map<BindingIndex, unsigned int> m_bindingIndexToVbo;
+    std::unique_ptr<Buffer> m_vaoConverted, m_eboConverted = nullptr;
+    std::unordered_map<BindingIndex, std::unique_ptr<Buffer>> m_bindingIndexToVboConverted = {};
 
-    unsigned int m_vaoConverted, m_vboConverted, m_eboConverted;
-    std::vector<unsigned int> m_vbosConverted;
-    std::unordered_map<BindingIndex, unsigned int> m_bindingIndexToVboConverted;
-
-    unsigned int m_vaoInstancing, m_vboInstancing, m_eboInstancing;
-    std::unordered_map<BindingIndex, unsigned int> m_bindingIndexToVboInstancing;
+    std::unique_ptr<Buffer> m_vaoInstancing, m_eboInstancing = nullptr;
+    std::unordered_map<BindingIndex, std::unique_ptr<Buffer>> m_bindingIndexToVboInstancing = {};
 
     std::vector<float> m_VertexData = {};
     std::vector<unsigned int> m_IndexData = {};
@@ -72,6 +73,8 @@ private:
     std::shared_ptr<VertexLayout> m_targetLayout;
 
     std::unique_ptr<VertexLayout> m_instancingLayout = nullptr;
+
+    AABB* m_aabb;
 
 
     std::vector<float> m_VertexDataConverted;
@@ -131,16 +134,17 @@ public:
         return m_usingInstancing;
     }
 
-    void SetInstancesTransform(const std::vector<glm::mat4>& transforms);
+    void SetInstancesTransform(const void* data, size_t size);
 
     void SetInstancingOff();
 
     void SetBoundingVolume(std::unique_ptr<IBoundingVolume> boundingVolume)
     {
         m_boundingVolume = std::move(boundingVolume);
+        m_aabb = dynamic_cast<AABB*>(m_boundingVolume.get());
     }
 
-    Buffers GetBuffers() const;
+
     const VertexLayout* GetVertexLayout() const;
     unsigned int GetVao() const;
 
@@ -160,8 +164,13 @@ public:
         return m_worldBoundingVolume.get();
     }
 
-    void CreateBuffers(unsigned int& vao, std::unordered_map<BindingIndex, unsigned int>& vbos,
-                       unsigned int& ebo, VertexLayout* vertexLayout, std::vector<float>& vertexData);
+    IBoundingVolume* GetAABB() const
+    {
+        return m_aabb;
+    }
+
+    void CreateBuffers(std::unique_ptr<Buffer>& vao, std::unordered_map<BindingIndex, std::unique_ptr<Buffer>>& vbos,
+                       std::unique_ptr<Buffer>& ebo, VertexLayout* vertexLayout, std::vector<float>& vertexData);
 };
 
 

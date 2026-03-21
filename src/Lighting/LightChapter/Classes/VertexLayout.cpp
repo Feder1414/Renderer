@@ -153,13 +153,6 @@ unsigned int VertexLayout::GetVertexAttribLocation(const std::string& attribName
 }
 
 
-std::unordered_map<BindingIndex, Buffer> VertexLayout::CreateVertexBufferObjects()
-{
-    std::unordered_map<BindingIndex, Buffer> bindingIndexToBuffer = {};
-    for (const auto& [bindingIndex, vboAttribs] : m_vboToAttributes)
-    {
-    }
-}
 
 
 //std::size_t VertexLayout::GetBytesPerVertex() { return m_accumulatedSize[m_accumulatedSize.size() - 1]; }

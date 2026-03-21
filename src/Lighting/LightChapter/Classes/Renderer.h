@@ -10,6 +10,7 @@
 
 
 #include "FrameBuffer.h"
+#include "Light.h"
 #include "Material.h"
 #include "Mesh.h"
 #include "ModelRenderInfo.h"
@@ -50,6 +51,12 @@ struct DrawItemInstancing
     bool usingOutline;
 };
 
+
+struct CamMatrices
+{
+    glm::mat4 viewMatrix;
+    glm::mat4 projMatrix;
+};
 
 struct DrawKey
 {
@@ -96,6 +103,15 @@ enum class PostProcessEffect
     ENUM_FACE_POST_PROCESS_EFFECT(X)
 };
 #undef X
+
+enum class PredefinedUBO
+{
+    CamMatrices,
+    LightsGpu
+};
+
+
+
 class Renderer
 {
 public:
@@ -138,7 +154,7 @@ private:
     std::vector<Entity*> m_borderPassEntities = {};
 
 
-    std::vector<EntityBoundingVolume> m_worldBBVolumes{};
+    std::vector<Entity*> m_worldBBVolumes{};
 
     std::vector<Entity*> m_normalPassEntities{};
 
@@ -146,6 +162,14 @@ private:
     std::unique_ptr<OutlineComponent> m_globalOutlineInstancing = nullptr;
 
     std::unique_ptr<FrameBuffer> m_forwardFrameBuffer;
+
+    std::unique_ptr<Buffer> m_UBOCamMatrix;
+    std::unique_ptr<Buffer> m_SSBOLights;
+
+
+    static unsigned int MAX_LIGHTS_RENDER;
+
+    std::vector<LightGPU> m_lightsGpu;
 
 
     static int MAX_TEXTURE_SLOTS;
@@ -197,6 +221,7 @@ private:
 
 
     void FullScreenQuadPass();
+    void BindPerFrameUBOSAndSSBO();
 };
 
 

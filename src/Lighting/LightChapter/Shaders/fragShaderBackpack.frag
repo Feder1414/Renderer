@@ -1,12 +1,11 @@
 #version 460 core
 
-#define MAX_LIGHTS 10
+#define MAX_LIGHTS 1024
 
 //Enum LightType
 #define POINT_LIGHT 0
 #define DIRECTIONAL_LIGHT 1
 #define SPOT_LIGHT 2
-
 
 
 //Enum transparency
@@ -41,6 +40,10 @@ struct Light {
     int type;
 };
 
+layout(std430, binding = 1) buffer LightsData{
+    Light lights[1024];
+};
+
 
 //Material
 uniform sampler2D materialDiffuse;
@@ -49,7 +52,7 @@ uniform int materialShininess;
 uniform int transparency;
 
 //Light
-uniform Light lights[MAX_LIGHTS];
+//uniform Light lights[MAX_LIGHTS];
 uniform int amountLights;
 
 

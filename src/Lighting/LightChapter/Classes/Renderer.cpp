@@ -22,22 +22,11 @@
 #include "tracy/Tracy.hpp"
 #include "RenderBuffer.h"
 
+
 int Renderer::MAX_TEXTURE_SLOTS = 16;
 
 namespace
 {
-    void DebugMatrix(glm::mat3 mat)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            for (int j = 0; j < 3; j++)
-            {
-                std::cout << mat[i][j] << " ";
-            }
-            std::cout << std::endl;
-        }
-    }
-
     std::array<float, 9> blurKernel = {
         1.0 / 16, 2.0 / 16, 1.0 / 16,
         2.0 / 16, 4.0 / 16, 2.0 / 16,
@@ -50,7 +39,19 @@ namespace
         1.0f, 1.0f, 1.0f,
     };
     UniformValue edgeKernelUniform = UniformValue{edgeKernel};
+
+    unsigned int PredefinedUBOIndexLocation(PredefinedUBO predefinedUbo)
+    {
+        switch (predefinedUbo)
+        {
+        case PredefinedUBO::CamMatrices: return 0;
+        case PredefinedUBO::LightsGpu: return 1;
+        default: throw std::exception("Invalid PredefinedUBO enum");
+        }
+    }
 }
+
+unsigned int Renderer::MAX_LIGHTS_RENDER = 1024;
 
 
 Renderer::Renderer(int width, int height) : m_width(width), m_height(height)
@@ -80,6 +81,31 @@ Renderer::Renderer(int width, int height) : m_width(width), m_height(height)
     m_forwardFrameBuffer = std::make_unique<FrameBuffer>(colorAttachments, depthStencAttachments);
 
     m_fullScreenQuad = BasicShapesMeshGenerator::CreateFullScreenQuad();
+
+    BufferDesc camMatrixUBODesc = {
+        .name = "camMatrixUbo", .type = BufferType::Constant, .storage = BufferStorage::DynamicStorage,
+        .size = sizeof(CamMatrices)
+    };
+    m_UBOCamMatrix = std::make_unique<Buffer>();
+    m_UBOCamMatrix->CreateBufferRaw(camMatrixUBODesc, nullptr);
+
+    glBindBufferBase(GL_UNIFORM_BUFFER, PredefinedUBOIndexLocation(PredefinedUBO::CamMatrices),
+                     m_UBOCamMatrix->GetBufferId());
+
+    BufferDesc ssboLights = {
+        .name = "lightsSSBO",
+        .type = BufferType::Constant,
+        .storage = BufferStorage::DynamicStorage,
+        .size = MAX_LIGHTS_RENDER * sizeof(LightGPU)
+    };
+    m_SSBOLights = std::make_unique<Buffer>();
+    m_SSBOLights->CreateBufferRaw(ssboLights, nullptr);
+
+    m_lightsGpu.resize(MAX_LIGHTS_RENDER);
+
+
+    glBindBufferBase(GL_SHADER_STORAGE_BUFFER, PredefinedUBOIndexLocation(PredefinedUBO::LightsGpu),
+                     m_SSBOLights->GetBufferId());
 }
 
 void Renderer::BindTexture(Texture* texture)
@@ -98,6 +124,7 @@ void Renderer::BindTexture(Texture* texture)
 void Renderer::SortRenderItems()
 {
     ZoneScoped;
+
 
     const auto& activeCamera = m_currScene->GetActiveCamera();
     for (const auto& sceneEntity : m_visibleEntities)
@@ -191,6 +218,7 @@ void Renderer::RenderScene()
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
+    BindPerFrameUBOSAndSSBO();
 
     if (!m_currScene)
     {
@@ -229,13 +257,19 @@ void Renderer::RenderScene()
             glStencilMask(0xFF);
             glStencilFunc(GL_ALWAYS, 1, 0xFF);
             glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-            instancingDrawItem.mesh->SetInstancesTransform(instancingDrawItem.transforms);
+            instancingDrawItem.mesh->SetInstancesTransform(instancingDrawItem.transforms.data(),
+                                                           instancingDrawItem.transforms.size() * sizeof(
+                                                               glm::mat4));
+
             InstancingPass(instancingDrawItem);
             glDisable(GL_STENCIL_TEST);
         }
         else
         {
-            instancingDrawItem.mesh->SetInstancesTransform(instancingDrawItem.transforms);
+            instancingDrawItem.mesh->SetInstancesTransform(instancingDrawItem.transforms.data(),
+                                                           instancingDrawItem.transforms.size() * sizeof(
+                                                               glm::mat4));
+
             InstancingPass(instancingDrawItem);
         }
     }
@@ -336,6 +370,9 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
     const auto& cameras = m_currScene->GetCameras();
 
 
+    UploadLightProperties(shader);
+
+
     for (auto& shaderProperty : activeProperties)
     {
         if (shaderProperty == ShaderBasicProperties::LightTransform && !lights.empty())
@@ -347,23 +384,23 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
                                       lightTransform);
         }
-        else if (shaderProperty == ShaderBasicProperties::ProjectionTransform && !cameras.empty())
-        {
-            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
-            auto projMatrix = UniformValue{
-                activeCamera->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
-            };
-            shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
-                                      projMatrix);
-        }
-        else if (shaderProperty == ShaderBasicProperties::ViewTransform && !cameras.empty())
-        {
-            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
-            auto viewMatrix = UniformValue{activeCamera->GetViewMatrix()};
-
-            shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
-                                      viewMatrix);
-        }
+        // else if (shaderProperty == ShaderBasicProperties::ProjectionTransform && !cameras.empty())
+        // {
+        //     const auto& activeCamera = cameras[0]->GetComponent<Camera>();
+        //     auto projMatrix = UniformValue{
+        //         activeCamera->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
+        //     };
+        //     shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
+        //                               projMatrix);
+        // }
+        // else if (shaderProperty == ShaderBasicProperties::ViewTransform && !cameras.empty())
+        // {
+        //     const auto& activeCamera = cameras[0]->GetComponent<Camera>();
+        //     auto viewMatrix = UniformValue{activeCamera->GetViewMatrix()};
+        //
+        //     shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
+        //                               viewMatrix);
+        // }
         else if (shaderProperty == ShaderBasicProperties::LightColor && !lights.empty())
         {
             auto activeLightEntity = lights[0];
@@ -418,10 +455,7 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
                                       lightPosition);
         }
-        else if (shaderProperty == ShaderBasicProperties::Lights && !lights.empty())
-        {
-            UploadLightProperties(shader);
-        }
+
         else if (shaderProperty == ShaderBasicProperties::NearPlane && !cameras.empty())
         {
             const auto& activeCamera = cameras[0]->GetComponent<Camera>();
@@ -507,6 +541,7 @@ void Renderer::UploadPerModelProperties(Shader* shader, const ModelRenderInfo* o
 
 void Renderer::FrustumCulling()
 {
+    ZoneScoped;
     std::vector<Entity*> visibleEntities = {};
     const auto& activeCam = m_currScene->GetActiveCamera();
 
@@ -517,26 +552,26 @@ void Renderer::FrustumCulling()
     {
         auto renderInfo = sceneEntity->GetModelRenderInfo();
 
+
         if (!renderInfo)
         {
             continue;
         }
         m_totalRenderableEntities += 1;
-        auto worldBoundingVol = renderInfo->GetMesh()->GetBoundingVolume()->CalculateWorldBB(sceneEntity.get());
+
+
+        auto worldBoundingVol = renderInfo->GetWorldAABB();
         if (!worldBoundingVol)
         {
             continue;
         }
-
 
         if (worldBoundingVol->IsOnFrustum(camFrustum))
         {
             m_visibleEntities.push_back(sceneEntity.get());
             if (m_renderBB)
             {
-                m_worldBBVolumes.push_back({
-                    .entity = sceneEntity.get(), .boundingVolume = std::move(worldBoundingVol)
-                });
+                m_worldBBVolumes.push_back(sceneEntity.get());
             }
         }
     }
@@ -601,11 +636,11 @@ Frustum Renderer::CalculateFrustumCamera()
 void Renderer::GenericPass(const ModelRenderInfo* renderInfo)
 {
     auto mesh = renderInfo->GetMesh();
-    auto modelBuffers = mesh->GetBuffers();
+
 
     auto& submeshes = mesh->GetSubMeshes();
     auto& submeshesMaterials = mesh->GetSubmeshToMaterial();
-    glBindVertexArray(modelBuffers.vao);
+    glBindVertexArray(mesh->GetVao());
 
     for (unsigned int i = 0; i < submeshes.size(); i++)
     {
@@ -636,96 +671,100 @@ void Renderer::UploadLightProperties(Shader* shader)
 {
     const auto& sceneLights = m_currScene->GetLights();
 
+    if (sceneLights.empty())
+    {
+        return;
+    }
+
     auto amountLights = UniformValue{static_cast<int>(sceneLights.size())};
     shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::AmountLights), amountLights);
 
-    auto arrayLightsUniformName = Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::Lights);
-    for (int i = 0; i < sceneLights.size(); i++)
-    {
-        auto& sceneLight = sceneLights[i];
-        auto lightComponent = sceneLight->GetComponent<Light>();
-
-        auto indexString = "[" + std::to_string(i) + "].";
-
-        auto colorUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(LightProperty::Color);
-        auto colorValue = UniformValue{lightComponent->m_color};
-        shader->setUniformPerName(colorUniform, colorValue);
-
-        auto positionUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::Position);
-        auto positionValue = UniformValue{sceneLight->GetLocalPos()};
-        shader->setUniformPerName(positionUniform, positionValue);
-
-
-        auto directionUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::Direction);
-        auto directionValue = UniformValue{lightComponent->m_direction};
-        shader->setUniformPerName(directionUniform, directionValue);
-
-
-        auto ambientUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::AmbientFactor);
-        auto ambientValue = UniformValue{lightComponent->m_ambientStrength};
-        shader->setUniformPerName(ambientUniform, ambientValue);
-
-
-        auto diffuseUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::DiffuseFactor);
-        auto diffuseValue = UniformValue{lightComponent->m_diffStrength};
-        shader->setUniformPerName(diffuseUniform, diffuseValue);
-
-
-        auto specularUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::SpecularFactor);
-        auto specularValue = UniformValue{lightComponent->m_specularStrength};
-        shader->setUniformPerName(specularUniform, specularValue);
-
-
-        auto innerUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::InnerConeAngle);
-        auto innerValue = UniformValue{lightComponent->GetInnerConeAngle()};
-        shader->setUniformPerName(innerUniform, innerValue);
-
-
-        auto outerUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::OuterConeAngle);
-        auto outerValue = UniformValue{lightComponent->GetOuterConeAngle()};
-        shader->setUniformPerName(outerUniform, outerValue);
-
-
-        auto attConstUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::AttenuationConstant);
-        auto attConstValue = UniformValue{lightComponent->m_attenuationConstant};
-        shader->setUniformPerName(attConstUniform, attConstValue);
-
-
-        auto attLinearUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::AttenuationLinear);
-        auto attLinearValue = UniformValue{lightComponent->m_attenuationLinear};
-        shader->setUniformPerName(attLinearUniform, attLinearValue);
-
-
-        auto attQuadraticUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::AttenuationQuadratic);
-        auto attQuadraticValue = UniformValue{lightComponent->m_attenuationQuadratic};
-        shader->setUniformPerName(attQuadraticUniform, attQuadraticValue);
-
-        auto lightTypeUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
-            LightProperty::LightType);
-        auto lightTypeValue = UniformValue{static_cast<int>(lightComponent->m_lightType)};
-
-        shader->setUniformPerName(lightTypeUniform, lightTypeValue);
-    }
+    // auto arrayLightsUniformName = Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::Lights);
+    // for (int i = 0; i < sceneLights.size(); i++)
+    // {
+    //     auto& sceneLight = sceneLights[i];
+    //     auto lightComponent = sceneLight->GetComponent<Light>();
+    //
+    //     auto indexString = "[" + std::to_string(i) + "].";
+    //
+    //     auto colorUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(LightProperty::Color);
+    //     auto colorValue = UniformValue{lightComponent->m_color};
+    //     shader->setUniformPerName(colorUniform, colorValue);
+    //
+    //     auto positionUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::Position);
+    //     auto positionValue = UniformValue{sceneLight->GetLocalPos()};
+    //     shader->setUniformPerName(positionUniform, positionValue);
+    //
+    //
+    //     auto directionUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::Direction);
+    //     auto directionValue = UniformValue{lightComponent->m_direction};
+    //     shader->setUniformPerName(directionUniform, directionValue);
+    //
+    //
+    //     auto ambientUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::AmbientFactor);
+    //     auto ambientValue = UniformValue{lightComponent->m_ambientStrength};
+    //     shader->setUniformPerName(ambientUniform, ambientValue);
+    //
+    //
+    //     auto diffuseUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::DiffuseFactor);
+    //     auto diffuseValue = UniformValue{lightComponent->m_diffStrength};
+    //     shader->setUniformPerName(diffuseUniform, diffuseValue);
+    //
+    //
+    //     auto specularUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::SpecularFactor);
+    //     auto specularValue = UniformValue{lightComponent->m_specularStrength};
+    //     shader->setUniformPerName(specularUniform, specularValue);
+    //
+    //
+    //     auto innerUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::InnerConeAngle);
+    //     auto innerValue = UniformValue{lightComponent->GetInnerConeAngle()};
+    //     shader->setUniformPerName(innerUniform, innerValue);
+    //
+    //
+    //     auto outerUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::OuterConeAngle);
+    //     auto outerValue = UniformValue{lightComponent->GetOuterConeAngle()};
+    //     shader->setUniformPerName(outerUniform, outerValue);
+    //
+    //
+    //     auto attConstUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::AttenuationConstant);
+    //     auto attConstValue = UniformValue{lightComponent->m_attenuationConstant};
+    //     shader->setUniformPerName(attConstUniform, attConstValue);
+    //
+    //
+    //     auto attLinearUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::AttenuationLinear);
+    //     auto attLinearValue = UniformValue{lightComponent->m_attenuationLinear};
+    //     shader->setUniformPerName(attLinearUniform, attLinearValue);
+    //
+    //
+    //     auto attQuadraticUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::AttenuationQuadratic);
+    //     auto attQuadraticValue = UniformValue{lightComponent->m_attenuationQuadratic};
+    //     shader->setUniformPerName(attQuadraticUniform, attQuadraticValue);
+    //
+    //     auto lightTypeUniform = arrayLightsUniformName + indexString + Light::LightPropertyEnumToStr(
+    //         LightProperty::LightType);
+    //     auto lightTypeValue = UniformValue{static_cast<int>(lightComponent->m_lightType)};
+    //
+    //     shader->setUniformPerName(lightTypeUniform, lightTypeValue);
+    // }
 }
 
 
 void Renderer::OutlinePass(ModelRenderInfo* renderInfo, OutlineComponent* outlineComponent)
 {
     auto mesh = renderInfo->GetMesh();
-    auto modelBuffers = mesh->GetBuffers();
     auto submeshes = mesh->GetSubMeshes();
     auto submeshesMaterials = mesh->GetSubmeshToMaterial();
-    glBindVertexArray(modelBuffers.vao);
+    glBindVertexArray(mesh->GetVao());
 
 
     auto borderShader = ShaderManager::GetDefaultShader(DefaultShader::BorderColor);
@@ -827,7 +866,7 @@ void Renderer::InstancingPass(const DrawItemInstancing& instancingDrawItem)
         shader->setUniformPerName(
             Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::NormalMatrix), uniformNormalMatrix);
     }
-    //UploadLightProperties(shader);
+    UploadLightProperties(shader);
     auto submesh = submeshes[instancingDrawItem.submeshIndex];
 
 
@@ -838,10 +877,10 @@ void Renderer::InstancingPass(const DrawItemInstancing& instancingDrawItem)
 
 void Renderer::UpdateInstancingBufferInstances()
 {
-    for (const auto& [drawKey, instancingDrawItem] : m_drawKeyToInstanceItem)
-    {
-        instancingDrawItem.mesh->SetInstancesTransform(instancingDrawItem.transforms);
-    }
+    // for (const auto& [drawKey, instancingDrawItem] : m_drawKeyToInstanceItem)
+    // {
+    //     instancingDrawItem.mesh->SetInstancesTransform(TODO, TODO);
+    // }
 }
 
 void Renderer::ClearRenderData()
@@ -870,29 +909,27 @@ void Renderer::BBPass()
     auto aabbShader = ShaderManager::GetDefaultShader(DefaultShader::AABB);
     aabbShader->Use();
 
-    const auto& activeCamera = m_currScene->GetActiveCamera()->GetComponent<Camera>();
-    auto viewMatrix = UniformValue{activeCamera->GetViewMatrix()};
-    aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ViewTransform), viewMatrix);
+    // const auto& activeCamera = m_currScene->GetActiveCamera()->GetComponent<Camera>();
+    // auto viewMatrix = UniformValue{activeCamera->GetViewMatrix()};
+    // aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ViewTransform), viewMatrix);
+    //
+    // auto projMatrix = UniformValue{
+    //     activeCamera->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
+    // };
+    // aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ProjectionTransform),
+    //                               projMatrix);
 
-    auto projMatrix = UniformValue{
-        activeCamera->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
-    };
-    aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ProjectionTransform),
-                                  projMatrix);
 
-
-    for (const auto& worldBoundingVolume : m_worldBBVolumes)
+    for (const auto& entity : m_worldBBVolumes)
     {
-        if (auto aabbWorld = dynamic_cast<AABB*>(worldBoundingVolume.boundingVolume.get()))
-        {
-            auto aabbCenter = UniformValue{aabbWorld->GetCenter()};
-            auto aabbExtents = UniformValue{aabbWorld->GetExtents()};
+        auto aabbWorld = entity->GetModelRenderInfo()->GetWorldAABB();
+        auto aabbCenter = UniformValue{aabbWorld->GetCenter()};
+        auto aabbExtents = UniformValue{aabbWorld->GetExtents()};
 
-            aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::BBCenter), aabbCenter);
-            aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::AABBExtents),
-                                          aabbExtents);
-            glDrawArrays(GL_POINTS, 0, 1);
-        }
+        aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::BBCenter), aabbCenter);
+        aabbShader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::AABBExtents),
+                                      aabbExtents);
+        glDrawArrays(GL_POINTS, 0, 1);
     }
 }
 
@@ -916,15 +953,15 @@ void Renderer::NormalPass()
 
         auto activeCam = m_currScene->GetActiveCamera()->GetComponent<Camera>();
 
-        auto viewMatrix = UniformValue{activeCam->GetViewMatrix()};
-        normalViewerShader->setUniformPerName(
-            Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ViewTransform), viewMatrix);
-
-        auto projMatrix = UniformValue{
-            activeCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
-        };
-        normalViewerShader->setUniformPerName(
-            Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ProjectionTransform), projMatrix);
+        // auto viewMatrix = UniformValue{activeCam->GetViewMatrix()};
+        // normalViewerShader->setUniformPerName(
+        //     Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ViewTransform), viewMatrix);
+        //
+        // auto projMatrix = UniformValue{
+        //     activeCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height))
+        // };
+        // normalViewerShader->setUniformPerName(
+        //     Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::ProjectionTransform), projMatrix);
 
         auto modelTransform = UniformValue{renderInfo->GetEntity()->GetWorldMat()};
         normalViewerShader->setUniformPerName(
@@ -1023,4 +1060,37 @@ void Renderer::FullScreenQuadPass()
 
     glEnable(GL_DEPTH_TEST);
     SetFaceCulling(m_faceCulling);
+}
+
+void Renderer::BindPerFrameUBOSAndSSBO()
+{
+    auto currCam = m_currScene->GetActiveCamera()->GetComponent<Camera>();
+
+    CamMatrices camMatrix = {
+        .viewMatrix = currCam->GetViewMatrix(),
+        .projMatrix = currCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height)),
+    };
+    m_UBOCamMatrix->BufferUploadData(&camMatrix, 0, sizeof(CamMatrices));
+
+
+    //Upload lights to UBO
+
+    const auto& sceneLights = m_currScene->GetLights();
+
+    if (!sceneLights.empty())
+    {
+        for (int i = 0; i < MAX_LIGHTS_RENDER; i++)
+        {
+            if (i >= sceneLights.size())
+            {
+                break;
+            }
+            auto light = sceneLights[i]->GetComponent<Light>();
+
+
+            m_lightsGpu[i] = light->GetLightGPU();
+        }
+    }
+
+    m_SSBOLights->BufferUploadData(m_lightsGpu.data(), 0, sceneLights.size() * sizeof(LightGPU));
 }

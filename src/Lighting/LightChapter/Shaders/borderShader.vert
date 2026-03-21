@@ -5,8 +5,13 @@ layout (location = 0) in vec3 position;
 
 
 uniform mat4 modelTransform;
-uniform mat4 viewTransform;
-uniform mat4 projectionTransform;
+
+
+layout(std140, binding = 0) uniform CameraData{
+    mat4 viewTransform;
+    mat4 projectionTransform;
+};
+
 uniform mat3 normalMatrix;
 
 void main() {

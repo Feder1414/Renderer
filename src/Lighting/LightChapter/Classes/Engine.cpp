@@ -381,7 +381,7 @@ void Engine::SetScene()
 
     // auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShaderInstancing.vert",
     //                                                "Shaders/fragShaderBackpack.frag");
-    auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShader.vert",
+    auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShaderInstancing.vert",
                                                    "Shaders/fragShaderBackpack.frag");
     ShaderManager::AddShader(shaderBackPack);
     //AssimpLoader
@@ -395,7 +395,7 @@ void Engine::SetScene()
         if (entity->GetModelRenderInfo())
         {
             entity->GetModelRenderInfo()->SetShader(shaderBackPackPtr);
-            //entity->GetModelRenderInfo()->GetMesh()->SetInstancing();
+            entity->GetModelRenderInfo()->GetMesh()->SetInstancing();
         }
     };
 
@@ -405,22 +405,22 @@ void Engine::SetScene()
     backPackEntity->SetLocalScale(glm::vec3(0.1, 0.1f, 0.1f));
 
     auto r = 100.0f;
-    auto amountBackpacks = 0;
+    auto amountBackpacks = 1000;
 
     auto xIncrement = 5.0f;
-    // for (int i = 0; i < amountBackpacks; i++)
-    // {
-    //     std::vector<std::unique_ptr<Entity>> copiedBackpackChildren = {};
-    //     auto backpackIEntity = backPackEntity->CopyEntity(copiedBackpackChildren);
-    //     auto xPosition = i * xIncrement;
-    //     backpackIEntity->SetLocalPos(glm::vec3(xPosition, 0.0f, 0.0f));
-    //
-    //     for (auto& child : copiedBackpackChildren)
-    //     {
-    //         scene->AddEntity(std::move(child));
-    //     }
-    // }
-    //
+    for (int i = 0; i < amountBackpacks; i++)
+    {
+        std::vector<std::unique_ptr<Entity>> copiedBackpackChildren = {};
+        auto backpackIEntity = backPackEntity->CopyEntity(copiedBackpackChildren);
+        auto xPosition = i * xIncrement;
+        backpackIEntity->SetLocalPos(glm::vec3(xPosition, 0.0f, 0.0f));
+
+        for (auto& child : copiedBackpackChildren)
+        {
+            scene->AddEntity(std::move(child));
+        }
+    }
+
 
 
     auto redWindowTex = std::make_shared<Texture>();

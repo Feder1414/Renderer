@@ -1,6 +1,6 @@
 #version 460 core
 
-#define MAX_LIGHTS 10
+#define MAX_LIGHTS 1024
 
 //Enum LightType
 #define POINT_LIGHT 0
@@ -19,25 +19,27 @@ in vec3 worldFragPos;
 
 out vec4 FragColor;
 
+
+
+
 struct Light {
     vec3 color;
     vec3 direction;
     vec3 position;
-
     float diffuseFactor;
     float ambientFactor;
     float specularFactor;
-
     float innerConeAngle;
     float outerConeAngle;
-
     float attConstant;
     float attLinear;
     float attQuadratic;
-
     int type;
 };
 
+layout(std430, binding = 1) buffer LightsData{
+    Light lights[1024];
+};
 
 
 
@@ -51,7 +53,7 @@ uniform int materialShininess;
 uniform int transparency;
 
 //Light
-uniform Light lights[MAX_LIGHTS];
+//uniform Light lights[MAX_LIGHTS];
 uniform int amountLights;
 
 

@@ -2,8 +2,11 @@
 
 layout (location = 0) in vec3 vertexPos;
 
-uniform mat4 projectionTransform;
-uniform mat4 viewTransform;
+
+layout(std140, binding = 0) uniform CameraData{
+    mat4 viewTransform;
+    mat4 projectionTransform;
+};
 uniform mat4 modelTransform;
 
 

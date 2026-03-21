@@ -10,6 +10,8 @@
 #include <format>
 #include <iostream>
 
+#include "Entity.h"
+
 namespace
 {
     std::unordered_map<LightProperty, std::string> lightPropertyEnumToStr = {
@@ -39,8 +41,7 @@ std::string Light::LightPropertyEnumToStr(LightProperty lightProperty)
 
 void Light::SetComponentMetadata()
 {
-
-        auto& componentMetadataName = GetMetadataComponentName();
+    auto& componentMetadataName = GetMetadataComponentName();
     componentMetadataName = "Light";
     auto& componentPropertiesMetadata = GetPropertiesMetadata();
 
@@ -60,5 +61,15 @@ void Light::SetComponentMetadata()
                   GetAttenuationQuadratic, "Light", "")
     MAKE_PROPERTY("m_innerConeAngle", float, PropertyType::FLOAT, SetInnerConeAngle, GetInnerConeAngle, "Light", "")
     MAKE_PROPERTY("m_outerConeAngle", float, PropertyType::FLOAT, SetOuterConeAngle, GetOuterConeAngle, "Light", "")
+}
 
+LightGPU Light::GetLightGPU() const
+{
+    return {
+        .color = m_color, .direction = m_direction, .position = entity->GetWorldPos(), .diffuseFactor = m_diffStrength,
+        .ambientFactor = m_ambientStrength,
+        .specularFactor = m_specularStrength, .innerConeAngle = m_innerConeAngle, .outerConeAngle = m_outerConeAngle,
+        .attConstant = m_attenuationConstant, .attLinear = m_attenuationLinear, .attQuadratic = m_attenuationQuadratic,
+        .type = static_cast<int>(m_lightType)
+    };
 }

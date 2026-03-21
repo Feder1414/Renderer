@@ -115,8 +115,7 @@ target_link_libraries(LightChapter PUBLIC
 )
 
 
-
-target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL)
+target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL TRACY_ENABLE)
 
 # TRACY_ENABLE
 

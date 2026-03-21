@@ -65,6 +65,8 @@ class Entity
     glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 m_right = glm::vec3(1.0f, 0.0f, 0.0f);
 
+    bool m_dirtyChanged = true;
+
 
     //World
 
@@ -181,6 +183,16 @@ public:
         m_localRot = localRot;
         m_localScale = localScale;
         UpdateTransform();
+    }
+
+    void ClearDirty()
+    {
+        m_dirtyChanged = false;
+    }
+
+    bool GetDirtyChanged()
+    {
+        return m_dirtyChanged;
     }
 
 

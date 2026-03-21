@@ -6,6 +6,7 @@
 #define GRAFICOS_MODELRENDERINFO_H
 
 
+#include "AABB.h"
 #include "IComponent.h"
 #include "../Classes/Material.h"
 #include "../Classes/Mesh.h"
@@ -40,9 +41,10 @@ private:
 
 
     std::unordered_map<std::string, UniformValue> uniformValuesInstances;
+    AABB m_worldBB = AABB(glm::vec3(0.0f), glm::vec3(0.0f));
+
 
 public:
-
     std::unique_ptr<IComponent> Clone();
 
 
@@ -74,12 +76,12 @@ public:
     std::shared_ptr<Mesh> GetMeshShared() const { return m_mesh; }
 
 
-
-
     void SetShaderSubmeshes(Shader* shader) { m_mesh->SetShader(shader); }
 
 
     void SetComponentMetadata() override;
+
+    AABB* GetWorldAABB();
 };
 
 

@@ -16,12 +16,14 @@ public:
     bool IsOnFrustum(const Frustum& frustum) override;
     bool IsOnForwardPlane(const Plane& plane) override;
     std::unique_ptr<IBoundingVolume> CalculateWorldBB(Entity* entity) override;
+    AABB CalculateWorldAABB(Entity* entity) const;
     AABB(const glm::vec3& min, const glm::vec3& max);
     AABB(const glm::vec3& center, float ix, float iy, float iz);
     glm::vec3 GetCenter() const { return m_center; }
     glm::vec3 GetExtents() const { return m_extents; }
 
 private:
+    void TransformToWorld(::Entity* entity, glm::vec3& newCenter, float& newIx, float& newIy, float& newIz) const;
     glm::vec3 m_center = glm::vec3(0.0F);
     glm::vec3 m_extents = glm::vec3(0.0f);
 };

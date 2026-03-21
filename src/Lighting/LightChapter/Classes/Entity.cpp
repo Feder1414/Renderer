@@ -42,6 +42,7 @@ void Entity::SetScene(Scene* scene)
 
 void Entity::UpdateTransform()
 {
+    m_dirtyChanged = true;
     CalculateLocalMatrix();
     if (!m_parent)
     {

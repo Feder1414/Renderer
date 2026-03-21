@@ -4,6 +4,7 @@
 
 #ifndef GRAFICOS_BUFFER_H
 #define GRAFICOS_BUFFER_H
+#include <memory>
 #include <span>
 #include <string>
 #include <unordered_map>
@@ -11,6 +12,7 @@
 
 class VertexLayout;
 enum class BindingIndex;
+
 
 enum class BufferType
 {
@@ -22,6 +24,28 @@ enum class BufferType
     Storage
 };
 
+enum class BufferStorage
+{
+    None = 0,
+    DynamicStorage = 1 << 0,
+    MapRead = 1 << 1,
+    MapWrite = 1 << 2,
+    MapPersistent = 1 << 3,
+    MapCoherent = 1 << 4,
+    ClientStorage = 1 << 5,
+};
+
+inline BufferStorage operator&(BufferStorage lo, BufferStorage ro)
+{
+    return static_cast<BufferStorage>(static_cast<int>(lo) & static_cast<int>(ro));
+}
+
+inline BufferStorage operator|(BufferStorage lo, BufferStorage ro)
+{
+    return static_cast<BufferStorage>(static_cast<int>(lo) | static_cast<int>(ro));
+}
+
+
 enum class BufferUsage
 {
     DynamicDraw,
@@ -32,16 +56,22 @@ struct BufferDesc
 {
     std::string name;
     BufferType type;
-    BufferUsage usage;
+    BufferStorage storage;
     size_t size;
+    size_t factorRealloc = 1024;
 };
+
 
 class Buffer
 {
 public:
     [[nodiscard]] unsigned int GetBufferId() const { return m_buffer; }
-    void CreateVao(VertexLayout* vertexLayout, const std::unordered_map<BindingIndex, Buffer*>& bindingIndexToBufferObject);
+    void CreateVao(VertexLayout* vertexLayout,
+                   const std::unordered_map<BindingIndex, std::unique_ptr<Buffer>>& bindingIndexToBufferObject,
+                   Buffer* ebo);
     void CreateBufferRaw(const BufferDesc& bufferDesc, const void* data);
+    void CreateBufferFromBuffDesc(const void* data);
+    void Resize(size_t newSize);
     void BufferUploadData(const void* data, size_t offset, size_t size);
 
     template <class T>

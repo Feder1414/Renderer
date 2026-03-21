@@ -8,6 +8,7 @@
 
 #include "Material.h"
 #include "VertexLayout.h"
+#include "Rendering/Buffer.h"
 
 
 namespace
@@ -15,44 +16,20 @@ namespace
     unsigned int bindingVboIndexInstancing = 2;
 }
 
-void Mesh::CreateBuffers(unsigned int& vao, std::unordered_map<BindingIndex, unsigned int>& vbos, unsigned int& ebo,
+void Mesh::CreateBuffers(std::unique_ptr<Buffer>& vao, std::unordered_map<BindingIndex, std::unique_ptr<Buffer>>& vbos,
+                         std::unique_ptr<Buffer>& ebo,
                          VertexLayout* vertexLayout, std::vector<float>& vertexData)
 {
+    BufferDesc eboDesc = {
+        .name = "ebo mesh: " + m_meshKey, .type = BufferType::Index, .storage = BufferStorage::None,
+        .size = m_IndexData.size() * sizeof(float)
+    };
+    ebo = std::make_unique<Buffer>();
+    ebo->CreateBufferRaw(eboDesc, m_IndexData.data());
+
+
+    //Separate the data that goes in every Buffer
     const auto& vbosAttribs = vertexLayout->GetVboAttribs();
-
-
-    glCreateVertexArrays(1, &vao);
-    // Corregido
-
-    for (const auto& [vboBindingIndex, vboAttribs] : vbosAttribs)
-    {
-        unsigned int newVbo;
-        glCreateBuffers(1, &newVbo);
-        vbos[vboBindingIndex] = newVbo;
-
-        glVertexArrayVertexBuffer(
-            vao,
-            static_cast<int>(vboBindingIndex),
-            newVbo,
-            0,
-            vboAttribs.accumulatedSize[vboAttribs.accumulatedSize.size() - 1]
-        );
-        for (const auto& attrib : vboAttribs.vertexAttribs)
-        {
-            glEnableVertexArrayAttrib(vao, attrib.location);
-            glVertexArrayAttribFormat(vao, attrib.location, attrib.amountComponents,
-                                      attrib.glType, GL_FALSE,
-                                      static_cast<GLuint>(attrib.offset));
-            glVertexArrayAttribBinding(vao, attrib.location, static_cast<int>(vboBindingIndex));
-
-            if (vboAttribs.isPerInstance)
-            {
-                glVertexArrayBindingDivisor(vao, static_cast<int>(vboBindingIndex), 1);
-            }
-        }
-    }
-
-
     auto& linearVBOAttribs = vertexLayout->GetLinearVboAttribs();
     const auto& attribNameToLinVertexAttrib = vertexLayout->GetVertexNameToLinearVertexAttrib();
     std::unordered_map<BindingIndex, std::vector<float>> bindingIndexVboToVertexData = {};
@@ -86,26 +63,36 @@ void Mesh::CreateBuffers(unsigned int& vao, std::unordered_map<BindingIndex, uns
         }
     }
 
+
+    //Create and fill every VBO
     for (const auto& [bindingIndex, vboAttribs] : vbosAttribs)
     {
-        auto vbo = vbos[bindingIndex];
+        BufferDesc vboDesc;
+        vbos[bindingIndex] = std::make_unique<Buffer>();
         if (!vboAttribs.isPerInstance)
         {
             auto& vboVertexData = bindingIndexVboToVertexData.at(bindingIndex);
-            glNamedBufferData(vbo, vboVertexData.size() * sizeof(float), vboVertexData.data(), GL_STATIC_DRAW);
+            vboDesc = {
+                .name = "vboMesh " + m_meshKey + "index " + std::to_string(static_cast<int>(bindingIndex)),
+                .type = BufferType::Vertex,
+                .storage = BufferStorage::None, .size = vboVertexData.size() * sizeof(float)
+            };
+            vbos[bindingIndex]->CreateBufferRaw(vboDesc, vboVertexData.data());
         }
         else
         {
-            glNamedBufferData(vbo, vboAttribs.vertexAttribs[0].stride * m_instanceBuffer.capacity, nullptr,
-                              GL_DYNAMIC_DRAW);
+            vboDesc = {
+                .name = "vboMesh " + m_meshKey + "index " + std::to_string(static_cast<int>(bindingIndex)),
+                .type = BufferType::Instance,
+                .storage = BufferStorage::DynamicStorage, .size = m_instanceBuffer.capacity * sizeof(glm::mat4)
+            };
+            vbos[bindingIndex]->CreateBufferRaw(vboDesc, nullptr);
         }
     }
 
-
-    glCreateBuffers(1, &ebo);
-    glNamedBufferData(ebo, m_IndexData.size() * sizeof(unsigned int), m_IndexData.data(), GL_STATIC_DRAW);
-
-    glVertexArrayElementBuffer(vao, ebo);
+    //CreateVao
+    vao = std::make_unique<Buffer>();
+    vao->CreateVao(vertexLayout, vbos, ebo.get());
 }
 
 
@@ -177,16 +164,6 @@ void Mesh::SetShader(Shader* shader)
 }
 
 
-Buffers Mesh::GetBuffers() const
-{
-    if (m_useConvertedVertexData && m_targetLayout)
-    {
-        return {.vao = m_vaoConverted, .vbo = m_vboConverted, .ebo = m_eboConverted};
-    }
-
-    return {.vao = m_vao, .vbo = m_vbo, .ebo = m_ebo};
-}
-
 const VertexLayout* Mesh::GetVertexLayout() const
 {
     if (m_usingInstancing)
@@ -205,14 +182,14 @@ unsigned int Mesh::GetVao() const
 {
     if (m_usingInstancing)
     {
-        return m_vaoInstancing;
+        return m_vaoInstancing->GetBufferId();
     }
     if (m_useConvertedVertexData && m_targetLayout)
     {
-        return m_vaoConverted;
+        return m_vaoConverted->GetBufferId();
     }
 
-    return m_vao;
+    return m_vao->GetBufferId();
 }
 
 void Mesh::SetInstancing(const InstanceBuffer& instance_buffer, bool useParamBuffer)
@@ -245,7 +222,7 @@ void Mesh::SetInstancing(const InstanceBuffer& instance_buffer, bool useParamBuf
 
 
     m_usingInstancing = true;
-    m_vboInstancing = {};
+
 
     CreateBuffers(m_vaoInstancing, m_bindingIndexToVboInstancing, m_ebo, m_instancingLayout.get(), vertexData);
 }
@@ -256,32 +233,14 @@ void Mesh::SetInstancingOff()
 }
 
 
-void Mesh::SetInstancesTransform(const std::vector<glm::mat4>& transforms)
+void Mesh::SetInstancesTransform(const void* data, size_t size)
 {
-    auto vboPerInstance = m_bindingIndexToVboInstancing[BindingIndex::Instance];
-
-    const auto& vboPerInstanceAttribs = m_instancingLayout->GetVboAttribs().at(BindingIndex::Instance);
-
-    //Asumes is tighly packaged
-    auto bytesSizePerInstance = vboPerInstanceAttribs.vertexAttribs[0].stride;
-
-
-    if (transforms.size() > m_instanceBuffer.capacity)
+    if (!m_usingInstancing)
     {
-        auto capacityDiff = transforms.size() - m_instanceBuffer.capacity;
-        auto factorIncrease = (capacityDiff / m_instanceBuffer.factorRealloc) + 2;
-        auto sumCapacity = factorIncrease * m_instanceBuffer.factorRealloc;
-        m_instanceBuffer.capacity += sumCapacity;
-
-        glNamedBufferData(vboPerInstance, bytesSizePerInstance * m_instanceBuffer.capacity, nullptr,
-                          GL_DYNAMIC_DRAW);
+        return;
     }
+    auto vboPerInstance = m_bindingIndexToVboInstancing[BindingIndex::Instance].get();
 
-    // for (unsigned int i = 0; i < transforms.size(); i++)
-    // {
-    //     auto offsetBytes = bytesSizePerInstance * i;
-    //
-    //     glNamedBufferSubData(vboPerInstance, offsetBytes, sizeof(transforms[i]), glm::value_ptr(transforms[i]));
-    // }
-    glNamedBufferSubData(vboPerInstance, 0, sizeof(glm::mat4) * transforms.size(), transforms.data());
+
+    vboPerInstance->BufferUploadData(data, 0, size);
 }
