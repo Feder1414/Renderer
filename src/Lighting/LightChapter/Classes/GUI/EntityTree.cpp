@@ -10,6 +10,11 @@
 void EntityTree::Render()
 {
     auto& sceneTree = m_scene->GetSceneTree();
+    if (!ImGui::Begin(m_windowName.c_str()))
+    {
+        ImGui::End();
+    }
+
     if (ImGui::BeginChild("treePanel", ImVec2(300, 0), ImGuiChildFlags_ResizeX | ImGuiChildFlags_ResizeY,
                           ImGuiChildFlags_NavFlattened))
 
@@ -26,6 +31,7 @@ void EntityTree::Render()
         }
     }
     ImGui::EndChild();
+    ImGui::End();
 }
 
 void EntityTree::DrawNodeEntity(Entity* entity)

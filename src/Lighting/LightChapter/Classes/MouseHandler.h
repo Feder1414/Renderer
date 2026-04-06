@@ -19,6 +19,7 @@ private:
     float m_lastX, m_lastY;
     float m_sensitivity = 0.1f;
     bool m_firstMouse = true;
+    bool m_wasStatic = false;
 
 public:
     MouseHandler(const float width, const float height)
@@ -35,6 +36,7 @@ public:
 
     void NotifyMouseMovement(double xpos, double ypos);
     void NotifyMouseScroll(double xpos, double ypos);
+    void SetWasStatic(bool wasStatic);
 };
 
 

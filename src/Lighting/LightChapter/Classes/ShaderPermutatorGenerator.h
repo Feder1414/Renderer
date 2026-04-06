@@ -15,6 +15,7 @@ class ShaderPermutatorGenerator
 public:
     static std::shared_ptr<Shader> CreateNormalViewerShader(VertexLayout* vertexLayout);
     static std::shared_ptr<Shader> CreateNormalViewerShader(unsigned int normalLocation);
+    static std::shared_ptr<Shader> CreateShadowInstancingShader(unsigned int transformLocation);
 };
 
 

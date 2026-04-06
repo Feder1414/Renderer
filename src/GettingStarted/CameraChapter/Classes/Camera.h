@@ -21,6 +21,7 @@ private:
     float m_fov = 45.0f;;
     float m_fovLowerLimit = 1.0f;
     float m_fovUpperLimit = 45.0f;
+    bool visualizeFrustum = false;
     Frustum frustum;
 
     MouseHandler* m_mouseHandler;

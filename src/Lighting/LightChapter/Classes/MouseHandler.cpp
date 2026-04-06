@@ -13,6 +13,13 @@ XYOffset MouseHandler::GetOffsets(double xpos, double ypos)
         m_firstMouse = false;
         return {.xOffset = 0, .yOffset = 0};
     }
+    if (m_wasStatic)
+    {
+        m_wasStatic = false;
+        m_lastX = xpos;
+        m_lastY = ypos;
+        return {.xOffset = 0, .yOffset = 0};
+    }
 
     float xOffset = (xpos - m_lastX) * m_sensitivity;
     float yOffset = (m_lastY - ypos) * m_sensitivity;
@@ -39,3 +46,7 @@ void MouseHandler::NotifyMouseScroll(double xpos, double ypos)
     m_onScrollMouse.Notify(xposF, yposF);
 }
 
+void MouseHandler::SetWasStatic(bool wasStatic)
+{
+    m_wasStatic = wasStatic;
+}

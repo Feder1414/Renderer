@@ -31,8 +31,9 @@ public:
     double GetTime() const;
     bool WindowShouldClose() const;
     GLFWwindow* GetGLFWWindow() { return m_glfwWindow; }
-
-
+    bool GetButtonPressed(int key) const;
+    GLFWwindow* GetCurrentContext() const;
+    void DisableCursor(bool disable);
 
 private:
     unsigned int m_width = 1280;
@@ -45,12 +46,15 @@ private:
 
     bool m_tabPrevPressed = false;
     bool m_homePrevPressed = false;
+    bool m_mouseCurrPressed = false;
 
 
     static void OnViewportSizeChanged(GLFWwindow* window, int width, int height);
     static void OnErrorWindow(int error, const char* description);
     static void OnMouseMove(GLFWwindow* glfwWindow, double xpos, double ypos);
     static void OnMouseScroll(GLFWwindow* glfwWindow, double xpos, double ypos);
+
+
 };
 
 

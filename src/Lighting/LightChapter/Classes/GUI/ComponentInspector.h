@@ -8,6 +8,8 @@
 #include "IWidget.h"
 #include "vec3.hpp"
 
+class Scene;
+
 enum class TransformUpdated
 {
     POSITION,
@@ -26,13 +28,21 @@ struct PropertyCache
 class ComponentInspector : public IWidget
 {
 public:
+    ComponentInspector() : IWidget("Component inspector")
+    {
+    }
+
     void Render() override;
     void SetEntity(Entity* entity);
+    void SetScene(Scene* scene) { m_scene = scene; }
     void RenderGenericComponent(IComponent* component);
     void SetTransformComponent();
 
+protected:
+
 private:
-    Entity* m_entity;
+    Entity* m_entity = nullptr;
+    Scene* m_scene = nullptr;
     glm::vec3 m_pos = glm::vec3(0.0);
     glm::vec3 m_rot = glm::vec3(0.0f);
     glm::vec3 m_scale = glm::vec3(1.0f);

@@ -50,7 +50,9 @@ namespace
         {"renderedWidth", ShaderBasicProperties::RenderedSceneWidth},
         {"applyKernel", ShaderBasicProperties::ApplyKernel},
         {"kernel[0]", ShaderBasicProperties::Kernel},
-        {"skybox", ShaderBasicProperties::SkyBox}
+        {"skybox", ShaderBasicProperties::SkyBox},
+        {"usingBlin", ShaderBasicProperties::UsingBlin},
+        {"shadowMap", ShaderBasicProperties::ShadowMap}
 
 
     };
@@ -483,6 +485,14 @@ std::string Shader::ShaderPropertyEnumToStr(ShaderBasicProperties shaderProperty
     if (shaderProperty == ShaderBasicProperties::SkyBox)
     {
         return "skybox";
+    }
+    if (shaderProperty == ShaderBasicProperties::UsingBlin)
+    {
+        return "usingBlin";
+    }
+    if (shaderProperty == ShaderBasicProperties::ShadowMap)
+    {
+        return "shadowMap";
     }
     return "Unkown property";
 }

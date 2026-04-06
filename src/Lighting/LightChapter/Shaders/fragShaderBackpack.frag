@@ -14,10 +14,12 @@
 #define TRANSPARENT 2
 
 
+
 in vec4 fragCol;
 in vec2 uvFrag;
 in vec3 worldNormal;
 in vec3 worldFragPos;
+in vec4 fragLightClip;
 
 out vec4 FragColor;
 
@@ -50,15 +52,79 @@ uniform sampler2D materialDiffuse;
 uniform sampler2D materialSpecular;
 uniform int materialShininess;
 uniform int transparency;
+uniform bool hasSpecularTexture;
+uniform  vec3 matSpecSolid;
 
 //Light
 //uniform Light lights[MAX_LIGHTS];
 uniform int amountLights;
 
+uniform bool usingBlin;
+
 
 //Eye position
 uniform vec3 eyePosition;
 
+const float kPi = 3.14159265;
+const float kShininess = 16.0;
+
+
+//Shadows
+
+uniform sampler2D shadowMap;
+
+
+
+float IsInShadow(vec3 normal, vec3 lightDir){
+
+    vec3 projCoords = fragLightClip.xyz / fragLightClip.w;
+    projCoords = (projCoords*0.5) + 0.5;
+
+    float depth = projCoords.z;
+    if (depth > 1.0f){
+        return 0.0f;
+    }
+    float currShadowMapFragDepth = texture(shadowMap, projCoords.xy).r;
+    float bias = max(0.05*(1.0-dot(normal, -lightDir)), 0.005f);
+    vec2 texSize = 1.0f / textureSize(shadowMap, 0);
+    float pcfAvg = 0.0f;
+    for (int x = -1; x <= 1; x++){
+        for (int y = -1; y <= 1; y++){
+
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texSize).r;
+            pcfAvg += pcfDepth < depth - bias ? 1.0f: 0.0;
+        }
+    }
+    pcfAvg/= 9;
+    return pcfAvg;
+
+
+}
+
+
+vec3 GetSpecularComponent(vec3 normLightDirection, vec3 fragToEye, vec3 normWorldNormal, vec3 lightSpecular, float diff){
+    float spec;
+
+    if (diff <= 0.0){
+        return vec3(0.0f);
+    }
+    if (usingBlin){
+        const float kEnergyConservation = (8.0 + materialShininess) / (8.0 * kPi);
+        vec3 halfwayDir = normalize(normLightDirection + fragToEye);
+        spec = kEnergyConservation* pow(max(0, dot(halfwayDir, normWorldNormal)), materialShininess);
+
+    }
+    else {
+        const float kEnergyConservation = (2.0 + materialShininess) / (2.0 * kPi);
+        vec3 reflectVector = reflect(normLightDirection, normWorldNormal);
+        spec =  kEnergyConservation* pow(max(0, dot(fragToEye, reflectVector)), materialShininess);
+    }
+    vec3 specularColor = hasSpecularTexture ? vec3(texture(materialSpecular, uvFrag)) : matSpecSolid;
+    return lightSpecular*spec*  specularColor;
+    //return lightSpecular*spec* vec3(0.3);
+
+
+}
 
 vec3 CalculatePointLightContribution(Light light, float attenuation, vec3 normWorldNormal, vec3 fragDiffuse, vec3 fragToEye) {
     vec3 lightDiff = light.color * light.diffuseFactor *attenuation;
@@ -72,10 +138,8 @@ vec3 CalculatePointLightContribution(Light light, float attenuation, vec3 normWo
     vec3 ambientComponent = lightAmbient*fragDiffuse;
 
 
-    vec3 reflectDirLight = reflect(-normLightDirection, normWorldNormal);
-    float spec = pow(max(0, dot(reflectDirLight, fragToEye)), materialShininess);
 
-    vec3 specularComponent = lightSpecular*spec*vec3(texture(materialSpecular, uvFrag));
+    vec3 specularComponent = GetSpecularComponent(normLightDirection, fragToEye, normWorldNormal, lightSpecular, diff);
 
     return ambientComponent + specularComponent + diffuseComponent;
 
@@ -83,23 +147,31 @@ vec3 CalculatePointLightContribution(Light light, float attenuation, vec3 normWo
 }
 
 vec3 CalculateDirLightContribution(Light light, float attenuation, vec3 normWorldNormal, vec3 fragDiffuse, vec3 fragToEye) {
-    vec3 lightDiff = light.color * light.diffuseFactor;
+    vec3 normLightDirection = normalize(light.direction);
     vec3 lightAmbient = light.color * light.ambientFactor;
+    vec3 ambientComponent = lightAmbient*fragDiffuse;
+
+    float isInShadow = IsInShadow(normWorldNormal, normLightDirection);
+    //    if (isInShadow == 1.0){
+    //        return ambientComponent;
+    //    }
+
+
+    vec3 lightDiff = light.color * light.diffuseFactor;
+
     vec3 lightSpecular = light.color * light.specularFactor;
 
-    vec3 normLightDirection = normalize(light.direction);
+
 
     float diff = max(dot(normWorldNormal, -normLightDirection), 0);
 
     vec3 diffuseComponent = diff*lightDiff*fragDiffuse;
-    vec3 ambientComponent = lightAmbient*fragDiffuse;
 
 
-    vec3 reflectDirLight = reflect(-normLightDirection, normWorldNormal);
-    float spec = pow(max(0, dot(reflectDirLight, fragToEye)), materialShininess);
-    vec3 specularComponent = lightSpecular*spec*vec3(texture(materialSpecular, uvFrag));
 
-    return ambientComponent + specularComponent + diffuseComponent;
+    vec3 specularComponent = GetSpecularComponent(-normLightDirection, fragToEye, normWorldNormal, lightSpecular, diff);
+
+    return ambientComponent + (1-isInShadow)*(specularComponent + diffuseComponent);
 
 }
 
@@ -111,9 +183,9 @@ vec3 CalculateSpotLightContribution(Light light, float attenuation, vec3 normWor
     float epsilon = light.innerConeAngle - light.outerConeAngle;
     float spotIntensity = clamp((theta - light.outerConeAngle)/epsilon, 0, 1);
 
-    vec3 lightDiff = light.color * light.diffuseFactor * spotIntensity;
-    vec3 lightAmbient = light.color * light.ambientFactor * spotIntensity;
-    vec3 lightSpecular = light.color * light.specularFactor;
+    vec3 lightDiff = light.color * light.diffuseFactor * spotIntensity * attenuation;
+    vec3 lightAmbient = light.color * light.ambientFactor * spotIntensity * attenuation;
+    vec3 lightSpecular = light.color * light.specularFactor * attenuation * spotIntensity;
 
 
     float diff = max(dot(normWorldNormal, normFragToLight), 0);
@@ -121,13 +193,14 @@ vec3 CalculateSpotLightContribution(Light light, float attenuation, vec3 normWor
     vec3 diffuseComponent = diff*lightDiff*fragDiffuse;
     vec3 ambientComponent = lightAmbient*fragDiffuse;
 
-    vec3 reflectDirLight = reflect(-normLightDirection, normWorldNormal);
-    float spec = pow(max(0, dot(reflectDirLight, fragToEye)), materialShininess);
-    vec3 specularComponent = lightSpecular*spec* vec3(texture(materialSpecular, uvFrag));
+    vec3 specularComponent = GetSpecularComponent(normFragToLight, fragToEye, normWorldNormal, lightSpecular, diff);
 
     return ambientComponent + specularComponent + diffuseComponent;
 
 }
+
+//Param normLightDirection must point from frag to light.
+
 
 
 

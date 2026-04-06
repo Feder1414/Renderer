@@ -137,7 +137,8 @@ public:
         return m_accumulatedSizeInstanceComponents;
     }
 
-    unsigned int GetVertexAttribLocation(const std::string& attribName) const;
+    int GetVertexAttribLocation(const std::string& attribName) const;
+    int GetVertexAttribLocation(VertexPredefinedAttributes vertexPredAttr, unsigned int channelIndex = 0) const;
 
     //const auto& GetAttribNameToLocation() { return m_attribNameToLocation; }
 };

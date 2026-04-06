@@ -61,6 +61,10 @@ struct BufferDesc
     size_t factorRealloc = 1024;
 };
 
+struct ResizeHelper
+{
+    unsigned int factorRealloc = 1000;
+};
 
 class Buffer
 {
@@ -70,9 +74,14 @@ public:
                    const std::unordered_map<BindingIndex, std::unique_ptr<Buffer>>& bindingIndexToBufferObject,
                    Buffer* ebo);
     void CreateBufferRaw(const BufferDesc& bufferDesc, const void* data);
+    void ReassignVBOToVAO(const Buffer* buffer, BindingIndex bindingIndex, size_t offset, size_t stride);
     void CreateBufferFromBuffDesc(const void* data);
-    void Resize(size_t newSize);
-    void BufferUploadData(const void* data, size_t offset, size_t size);
+    void Resize(size_t newSize, const void* data = nullptr);
+
+    void ResizeWithHelper(size_t factorRealloc, size_t totalSize, size_t extraRealloc, const void* data = nullptr);
+
+
+    void BufferUploadData(const void* data, size_t offset, size_t size, bool& needsReallocate);
 
     template <class T>
     void CreateBuffer(const BufferDesc& bufferDesc, std::span<T> data)

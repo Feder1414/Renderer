@@ -96,14 +96,47 @@ void Buffer::CreateBufferRaw(const BufferDesc& bufferDesc, const void* data)
     CreateBufferFromBuffDesc(data);
 }
 
+void Buffer::ReassignVBOToVAO(const Buffer* buffer, BindingIndex bindingIndex, size_t offset, size_t stride)
+{
+    if (m_BufferDesc.type != BufferType::VAO)
+    {
+        std::cout << "Cannot reassign VBO to a buffer that is not a VAO" << std::endl;
+        return;
+    }
+
+    glVertexArrayVertexBuffer(
+        m_buffer,
+        static_cast<int>(bindingIndex),
+        buffer->GetBufferId(),
+        offset,
+        stride
+    );
+}
+
 void Buffer::CreateBufferFromBuffDesc(const void* data)
 {
     glCreateBuffers(1, &m_buffer);
     glNamedBufferStorage(m_buffer, m_BufferDesc.size, data, BufferStorageToGlStorage(m_BufferDesc.storage));
 }
 
+void Buffer::ResizeWithHelper(size_t factorRealloc, size_t totalSize, size_t extraRealloc, const void* data)
+{
+    if (m_BufferDesc.size >= totalSize)
+    {
+        return;
+    }
 
-void Buffer::Resize(size_t newSize)
+    auto diffSize = totalSize - m_BufferDesc.size;
+    auto timesFactorRealloc = diffSize / factorRealloc;
+    auto extraReallocMemorySize = factorRealloc * (timesFactorRealloc + extraRealloc);
+
+
+    auto newSize = m_BufferDesc.size + extraReallocMemorySize;
+    Resize(newSize, data);
+}
+
+
+void Buffer::Resize(size_t newSize, const void* data)
 {
     if (m_BufferDesc.type == BufferType::VAO)
     {
@@ -111,14 +144,15 @@ void Buffer::Resize(size_t newSize)
         return;
     }
     glDeleteBuffers(1, &m_buffer);
-    glCreateBuffers(1, &m_buffer);
     m_BufferDesc.size = newSize;
+
     CreateBufferFromBuffDesc(nullptr);
 }
 
 
-void Buffer::BufferUploadData(const void* data, size_t offset, size_t size)
+void Buffer::BufferUploadData(const void* data, size_t offset, size_t size, bool& needsReallocate)
 {
+    needsReallocate = false;
     if ((m_BufferDesc.storage & BufferStorage::DynamicStorage) == BufferStorage::None)
     {
         std::cout << "The buffer with name: " << m_BufferDesc.name << "is inmutable and cannot be modified" <<
@@ -128,6 +162,7 @@ void Buffer::BufferUploadData(const void* data, size_t offset, size_t size)
 
     if (size + offset > m_BufferDesc.size)
     {
+        needsReallocate = true;
         std::cout << "The buffer with name: " << m_BufferDesc.name <<
             "does not have enough memory allocated for the incoming data" << std::endl;
         return;

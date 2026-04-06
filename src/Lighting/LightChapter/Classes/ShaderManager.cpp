@@ -30,6 +30,7 @@ std::shared_ptr<Shader> ShaderManager::GetShader(std::string& shaderKey)
 std::shared_ptr<Shader> ShaderManager::GetDefaultShader(DefaultShader defaultShader, int permutation)
 {
     auto shaderKey = DefaultShaderToStr(defaultShader, permutation);
+
     if (shaderCache.contains(shaderKey))
     {
         return shaderCache[shaderKey];
@@ -41,6 +42,7 @@ std::shared_ptr<Shader> ShaderManager::AddDefaultShader(std::shared_ptr<Shader>&
                                                         int permutation)
 {
     auto shaderKey = ShaderManager::DefaultShaderToStr(defaultShader, permutation);
+    shader->SetShaderKey(shaderKey);
     if (shaderCache.contains(shaderKey))
     {
         return shaderCache[shaderKey];
@@ -59,7 +61,11 @@ std::string ShaderManager::DefaultShaderToStr(DefaultShader defaultShader, int p
     case DefaultShader::AABB: return "aabb";
     case DefaultShader::FullScreenQuad: return "fullScreenQuad";
     case DefaultShader::NormalViewer: return "normalViewer" + std::to_string(permutation);
-    default:
-        return "Error";
+    case DefaultShader::ShadowPass: return "shadowPass";
+    case DefaultShader::ShadowPassInstancing: return "shadowPass" + std::to_string(permutation);
+    case DefaultShader::Skybox: return "skybox " + std::to_string(permutation);
+    case DefaultShader::ShadowPassDebug: return "shadowPassDebug";
+    case DefaultShader::FrustumViewer: return "frustumViewer";
+    default: throw std::exception("No valid default shader");
     }
 }

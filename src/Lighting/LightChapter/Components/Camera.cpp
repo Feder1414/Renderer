@@ -133,6 +133,27 @@ void Camera::SetFov(double fov)
     }
 }
 
+void Camera::SetFov(float fov)
+{
+    if (fov > m_fovUpperLimit)
+    {
+        m_fov = m_fovUpperLimit;
+    }
+    else if (fov < m_fovLowerLimit)
+    {
+        m_fov = m_fovLowerLimit;
+    }
+    else
+    {
+        m_fov = fov;
+    }
+}
+
+bool Camera::IsInViewFrustum(const AABB* aabb) const
+{
+    return aabb->IsOnFrustum(m_frustum);
+}
+
 Camera::Camera()
 {
     m_mouseHandler = Engine::GetMouseHandler();
@@ -153,4 +174,13 @@ glm::vec3 Camera::GetForwardCam() const
 
 void Camera::SetComponentMetadata()
 {
+    auto& componentMetadataName = GetMetadataComponentName();
+    componentMetadataName = "Camera";
+
+    auto& componentPropertiesMetadata = GetPropertiesMetadata();
+    MAKE_PROPERTY("m_nearPlane", float, PropertyType::FLOAT, SetNearPlane, GetNearPlane, "Camera", "")
+    MAKE_PROPERTY("m_farPlane", float, PropertyType::FLOAT, SetFarPlane, GetFarPlane, "Camera", "")
+    MAKE_PROPERTY("m_speed", float, PropertyType::FLOAT, SetMovementSpeed, GetSpeed, "Camera", "")
+    MAKE_PROPERTY("m_fov", float, PropertyType::FLOAT, SetFov, GetFov, "Camera", "")
+    MAKE_PROPERTY("m_viewFrustum", bool, PropertyType::BOOL, SetViewFrustum, GetViewFrustum, "Camera", "")
 }

@@ -29,12 +29,40 @@ namespace
         vs_out.normal = normal;
     }}
 )";
+
+
+    constexpr std::string_view vsInstancingShadowPassTemplate = R"(
+    #version 460
+
+    layout (location = 0) in vec3 position;
+
+
+    layout(location = {}) in mat4 instance;
+
+
+    layout(std140, binding = 0) uniform CameraData{{
+        mat4 viewTransform;
+        mat4 projectionTransform;
+    }};
+
+    layout(std140, binding = 2) uniform LightData{{
+        mat4 lightView;
+        mat4 lightProj;
+    }};
+
+    void main() {{
+        gl_Position = lightProj* lightView* instance * vec4(position, 1.0f);
+    }}
+
+)";
 }
 
 namespace
 {
     std::string normalViewerGeoPath = "Shaders/Debug/normalViewerGeo.glsl";
     std::string fragShaderViewerPath = "Shaders/Debug/normalViewerFrag.glsl";
+
+    std::string shadowPassFragPath = "Shaders/shadowPassFrag.glsl";
 }
 
 std::shared_ptr<Shader> ShaderPermutatorGenerator::CreateNormalViewerShader(VertexLayout* vertexLayout)
@@ -58,10 +86,27 @@ std::shared_ptr<Shader> ShaderPermutatorGenerator::CreateNormalViewerShader(unsi
         ShaderSource geoSource{.source = normalViewerGeoPath};
 
         normalViewerShader = std::make_shared<Shader>(vsSource, fsSource, geoSource);
-        normalViewerShader->SetShaderKey(
-            ShaderManager::DefaultShaderToStr(DefaultShader::NormalViewer, normalLocation));
         ShaderManager::AddDefaultShader(normalViewerShader, DefaultShader::NormalViewer, normalLocation);
     }
 
     return normalViewerShader;
+}
+
+std::shared_ptr<Shader> ShaderPermutatorGenerator::CreateShadowInstancingShader(unsigned int transformLocation)
+{
+    std::shared_ptr<Shader> shadowInstancing = ShaderManager::GetDefaultShader(
+        DefaultShader::ShadowPassInstancing, transformLocation);
+    if (!shadowInstancing)
+    {
+        auto vsSourceCode = std::vformat(vsInstancingShadowPassTemplate, std::make_format_args(transformLocation));
+
+        ShaderSource vsSource{.source = vsSourceCode, .isSourceCode = true};
+        ShaderSource fsSource{.source = shadowPassFragPath};
+
+        shadowInstancing = std::make_shared<Shader>(vsSource, fsSource);
+
+        ShaderManager::AddDefaultShader(shadowInstancing, DefaultShader::ShadowPassInstancing, transformLocation);
+    }
+
+    return shadowInstancing;
 }

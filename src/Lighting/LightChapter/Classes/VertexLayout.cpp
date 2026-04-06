@@ -141,7 +141,7 @@ std::string VertexLayout::VertexPredefinedAttrToString(VertexPredefinedAttribute
     return vertexPredAttrToStr[attr];
 }
 
-unsigned int VertexLayout::GetVertexAttribLocation(const std::string& attribName) const
+int VertexLayout::GetVertexAttribLocation(const std::string& attribName) const
 {
     auto attribLocation = m_attribNameToLocation.find(attribName);
 
@@ -152,7 +152,10 @@ unsigned int VertexLayout::GetVertexAttribLocation(const std::string& attribName
     return attribLocation->second;
 }
 
-
+int VertexLayout::GetVertexAttribLocation(VertexPredefinedAttributes vertexPredAttr, unsigned int channelIndex) const
+{
+    return GetVertexAttribLocation(VertexPredefinedAttrToString(VertexPredefinedAttributes::TRANSFORM, channelIndex));
+}
 
 
 //std::size_t VertexLayout::GetBytesPerVertex() { return m_accumulatedSize[m_accumulatedSize.size() - 1]; }

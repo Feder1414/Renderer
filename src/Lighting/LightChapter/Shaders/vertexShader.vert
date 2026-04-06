@@ -9,9 +9,17 @@ out vec4 fragCol;
 out vec2 uvFrag;
 out vec3 worldNormal;
 out vec3 worldFragPos;
+out vec4 fragLightClip;
+
+
 layout(std140, binding = 0) uniform CameraData{
     mat4 viewTransform;
     mat4 projectionTransform;
+};
+
+layout(std140, binding = 2) uniform LightData{
+    mat4 lightViewTransform;
+    mat4 ligthProjectionTransform;
 };
 
 uniform mat4 modelTransform;
@@ -23,6 +31,8 @@ void main() {
     vec4 worldPos = modelTransform * vec4(position, 1.0);
 
     gl_Position = projectionTransform * viewTransform * worldPos;
+
+    fragLightClip = ligthProjectionTransform*lightViewTransform*worldPos;
 
 
     fragCol = vertexCol;

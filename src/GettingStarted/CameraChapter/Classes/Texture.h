@@ -30,7 +30,7 @@ private:
 public:
     explicit Texture(TextureInfo texture_info);
     void LoadImage(std::string filePath);
-    void GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel);
+    void GenerateTextureFromRawImage(const unsigned char* data, bool hasAlphaChannel);
     void BindTexture() const;
     void GetTe
     static void InitializeTextureSlots();

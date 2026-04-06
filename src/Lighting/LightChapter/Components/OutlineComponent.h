@@ -56,6 +56,11 @@ public:
         alreadyInitialized = true;
     };
 
+    size_t GetComponentId() const override
+    {
+        return GetComponentMetadataId();
+    };
+
 private:
     float m_borderThickness = 1.05f;
     glm::vec3 m_color = glm::vec3(0.8f, 0.0f, 0.0f);

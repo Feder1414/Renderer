@@ -22,8 +22,11 @@ class Scene;
 class AssimpLoader
 {
 public:
-    AssimpLoader(Scene* scene, const std::string& filePath, std::shared_ptr<VertexLayout> targetVertexLayout = nullptr);
+    AssimpLoader();
+    void SetLoadInfo(Scene* scene, const std::string& filePath,
+                     std::shared_ptr<VertexLayout> targetVertexLayout = nullptr);
     Entity* ImportScene();
+    void CleanLoader();
 
 private:
     //Attr used for processiing submeshes in ProcessSubmes();
@@ -47,8 +50,8 @@ private:
                         std::vector<unsigned int>& indexData, std::vector<SubMesh>& submeshes,
                         std::vector<std::shared_ptr<Material>>&
                         materials);
-    void ProcessTexture(aiMaterial* aiMaterial, ::aiTextureType aiTextureType,
-                        std::string typeName, std::vector<std::shared_ptr<Texture>>& textures);
+    void ProcessTexture(::aiMaterial* aiMaterial, ::aiTextureType aiTextureType,
+                        std::string typeName, std::vector<std::shared_ptr<Texture>>& textures, bool isSRGB);
     std::shared_ptr<Texture> ProcessMaterial();
     std::shared_ptr<VertexLayout> GetVertexLayout(aiMesh* aiMesh);
 
@@ -60,7 +63,6 @@ private:
 
     void CalculateBaseLocalPath();
 
-    void CleanLoader();
 
     Scene* m_scene;
 };

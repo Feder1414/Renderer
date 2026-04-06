@@ -20,6 +20,10 @@ void Scene::AddEntity(std::unique_ptr<Entity> entity)
     }
     if (entity->GetComponent<Camera>())
     {
+        if (!m_activeCam)
+        {
+            m_activeCam = entity.get();
+        }
         m_cameras.push_back(entity.get());
     }
     if (!entity->GetParent())
@@ -27,4 +31,17 @@ void Scene::AddEntity(std::unique_ptr<Entity> entity)
         m_rootEntities.push_back(entity.get());
     }
     m_entities.push_back(std::move(entity));
+}
+
+Entity* Scene::GetCurrDirLight() const
+{
+    for (auto light : m_lights)
+    {
+        auto lightComponent = light->GetComponent<Light>();
+        if (lightComponent->GetLightType() == LightType::DirectionalLight && lightComponent->GetCastShadows())
+        {
+            return light;
+        }
+    }
+    return nullptr;
 }

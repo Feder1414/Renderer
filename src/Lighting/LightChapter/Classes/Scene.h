@@ -27,6 +27,7 @@ private:
     std::vector<Entity*> m_lights = {};
     std::vector<Entity*> m_cameras = {};
     int m_indexActiveCamera = 0;
+    Entity* m_activeCam = nullptr;
     std::vector<Entity*> m_rootEntities;
 
     std::unique_ptr<Skybox> m_skybox = nullptr;
@@ -53,6 +54,8 @@ public:
         return m_cameras;
     }
 
+    void ChangeActiveCamera(Entity* activeCam) { m_activeCam = activeCam; }
+
     const SceneLight* GetSceneLight() const
     {
         return m_sceneLight.get();
@@ -64,10 +67,13 @@ public:
         {
             std::cout << "There are no camera active because there are no cameras" << std::endl;
         }
-        return m_cameras[m_indexActiveCamera];
+        return m_activeCam;
     }
 
+
     void SetSkyBox(std::unique_ptr<Skybox> skybox) { m_skybox = std::move(skybox); }
+
+    Entity* GetCurrDirLight() const;
 
     Skybox* GetSkyBox() const { return m_skybox.get(); }
 

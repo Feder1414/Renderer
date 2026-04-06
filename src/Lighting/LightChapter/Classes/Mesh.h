@@ -13,6 +13,7 @@
 #include "BV/IBoundingVolume.h"
 #include "VertexLayout.h"
 #include "Rendering/Buffer.h"
+#include "glm.hpp"
 
 
 class AABB;
@@ -40,10 +41,10 @@ struct SubMesh
 
 struct InstanceBuffer
 {
-    unsigned int currSize = 0;
-    unsigned int capacity = 1000;
-    unsigned int factorRealloc = 1000;
+    size_t capacity = 1000;
+    size_t instanceSize = sizeof(glm::mat4);
 };
+
 
 class Mesh
 {

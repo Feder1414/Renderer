@@ -51,6 +51,8 @@
     } while (0)
 
 
+
+
 class Entity;
 
 namespace Components
@@ -62,6 +64,7 @@ class IComponent
 {
 protected:
     Entity* entity = nullptr;
+    bool m_enabled = true;
     std::unordered_map<std::string, ComponentPropertySetterGetter> m_propertySetterGetter;
     std::string m_componentName = "Default";
 
@@ -70,15 +73,19 @@ public:
     virtual void Update() = 0;
     void SetEntity(Entity* entityP) { entity = entityP; }
 
+
     virtual const std::unordered_map<std::string, ComponentProperty>& GetComponentMetadata()
     {
         return {};
     }
 
+
     const auto& GetSetterGetter()
     {
         return m_propertySetterGetter;
     }
+
+    virtual size_t GetComponentId() const = 0;
 
     virtual const std::string& GetComponentName() = 0;
 
@@ -86,6 +93,9 @@ public:
     virtual void SetComponentMetadata()
     {
     };
+
+    virtual bool IsEnabled() const { return m_enabled; }
+    virtual void SetEnabled(bool enabled) { m_enabled = enabled; }
     ///virtual std::unique_ptr<IComponent> Clone() = 0;
     Entity* GetEntity() const { return entity; }
 };

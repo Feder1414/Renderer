@@ -16,7 +16,11 @@ enum class DefaultShader
     AABB,
     NormalViewer,
     FullScreenQuad,
-    Skybox
+    Skybox,
+    ShadowPass,
+    ShadowPassInstancing,
+    ShadowPassDebug,
+    FrustumViewer,
 };
 
 class ShaderManager

@@ -18,7 +18,6 @@
 class Camera : public IComponent, public ComponentPropertiesMetadata<Camera>
 {
 private:
-    Transform m_transform = Transform();
     glm::vec3 m_forward = glm::vec3(0.0f, 0.0f, -1.0f);
     float yaw = 0.0f;
     float pitch = 0.0f;
@@ -27,6 +26,7 @@ private:
     float m_fovUpperLimit = 45.0f;
     float m_nearPlane = 0.1;
     float m_farPlane = 100.0f;
+    bool m_viewFrustum = false;
 
     float m_width, m_height = 100;
 
@@ -34,13 +34,27 @@ private:
 
     MouseHandler* m_mouseHandler;
 
+
     glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
     float m_movementSPeed = 0.5f;
 
     void CalculateFrustrum();
 
 public:
+    size_t GetComponentId() const override
+    {
+        return GetComponentMetadataId();
+    }
+
     glm::vec3 GetForwardCam() const;
+
+    void SetMovementSpeed(float speed) { m_movementSPeed = speed; }
+    float GetSpeed() const { return m_movementSPeed; }
+
+    const std::unordered_map<std::string, ComponentProperty>& GetComponentMetadata() override
+    {
+        return GetPropertiesMetadata();
+    } ;
 
     const std::string& GetComponentName() override
     {
@@ -62,6 +76,16 @@ public:
 
     glm::mat4 GetProjMatrix(float aspectRatio) const;
 
+    void CalculateFrustum(float aspectRatio)
+    {
+        auto viewMat = GetViewMatrix();
+        auto projMat = GetProjMatrix(aspectRatio);
+        m_frustum = Frustum(viewMat, projMat);
+    };
+
+    const Frustum& GetFrustum() const { return m_frustum; }
+
+
     float GetFov() const
     {
         return m_fov;
@@ -79,7 +103,6 @@ public:
     void SetNearPlane(float nearPlane) { m_nearPlane = nearPlane; }
     void SetFarPlane(float farPlane) { m_farPlane = farPlane; }
 
-    Transform& GetTransform() { return m_transform; }
 
     void SetWidthHeight(float width, float height)
     {
@@ -91,6 +114,13 @@ public:
 
     void UpdateFOV(double xoffset, double yoffset);
     void SetFov(double fov);
+    void SetFov(float fov);
+
+    bool IsInViewFrustum(const AABB* aabb) const;
+
+    bool GetViewFrustum() const {return m_viewFrustum;}
+    void SetViewFrustum(bool viewFrustum){m_viewFrustum = viewFrustum;}
+
 
     void SetComponentMetadata() override;
 };

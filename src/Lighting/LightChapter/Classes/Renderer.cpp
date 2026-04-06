@@ -46,6 +46,7 @@ namespace
         {
         case PredefinedUBO::CamMatrices: return 0;
         case PredefinedUBO::LightsGpu: return 1;
+        case PredefinedUBO::LightMatrices: return 2;
         default: throw std::exception("Invalid PredefinedUBO enum");
         }
     }
@@ -59,26 +60,6 @@ Renderer::Renderer(int width, int height) : m_width(width), m_height(height)
     m_globalOutlineInstancing = std::make_unique<OutlineComponent>();
     m_lastTimeDebugPrint = Engine::GetTime();
 
-    TextureDesc colorTex = {
-        .texFormat = TextureFormat::RGB, .texIntFormat = TextureInternalFormat::RGB_8, .mipLevels = 1,
-        .uWrapping = TextureWrapping::ClampToEdge, .vWrapping = TextureWrapping::ClampToEdge,
-        .width = m_width, .height = m_height, .magFilter = TextureFilter::Linear, .minFilter = TextureFilter::Linear
-    };
-    std::shared_ptr<Texture> colorRenderTexture = std::make_shared<Texture>(colorTex);
-
-    RenderBufferDesc depthStencilRenderBufferDesc = {
-        .intFormat = RenderBufferInternalFormat::DEPTH24_STENCIL_8, .width = m_width, .height = m_height
-    };
-    std::shared_ptr<RenderBuffer> depthStencilRenderBuffer = std::make_shared<RenderBuffer>(
-        depthStencilRenderBufferDesc);
-
-    std::vector<FrameBufferAttachment> colorAttachments = {
-        {.attachment = colorRenderTexture, .typeAttachment = FrameBufferTypeAttachment::Color}
-    };
-    std::vector<FrameBufferAttachment> depthStencAttachments = {
-        {.attachment = depthStencilRenderBuffer, .typeAttachment = FrameBufferTypeAttachment::DepthStencil}
-    };
-    m_forwardFrameBuffer = std::make_unique<FrameBuffer>(colorAttachments, depthStencAttachments);
 
     m_fullScreenQuad = BasicShapesMeshGenerator::CreateFullScreenQuad();
 
@@ -106,7 +87,164 @@ Renderer::Renderer(int width, int height) : m_width(width), m_height(height)
 
     glBindBufferBase(GL_SHADER_STORAGE_BUFFER, PredefinedUBOIndexLocation(PredefinedUBO::LightsGpu),
                      m_SSBOLights->GetBufferId());
+
+    BufferDesc descUBOLightMatrix = {
+        .name = "Lights matrix",
+        .type = BufferType::Constant,
+        .storage = BufferStorage::DynamicStorage,
+        .size = sizeof(CamMatrices)
+    };
+    m_UBOLightMatrix = std::make_unique<Buffer>();
+    m_UBOLightMatrix->CreateBufferRaw(descUBOLightMatrix, nullptr);
+    glBindBufferBase(GL_UNIFORM_BUFFER, PredefinedUBOIndexLocation(PredefinedUBO::LightMatrices),
+                     m_UBOLightMatrix->GetBufferId());
+
+
+    SetUsingMSAA(m_usingMSAA);
+    InitializeFrameBuffers();
 }
+
+void Renderer::SetScene(Scene* scene)
+{
+    m_currScene = scene;
+
+    auto camera = m_currScene->GetActiveCamera()->GetComponent<Camera>();
+
+    m_sceneViewport = std::make_unique<ViewPort>(1, 1, camera, m_postProcessFrameBuffer.get());
+
+    auto currDirLight = scene->GetCurrDirLight()->GetComponent<Light>();
+
+    m_shadowViewPort = std::make_unique<ViewPort>(1024, 1024, currDirLight, m_shadowFrameBuffer.get());
+    m_shadowDebugViewPort = std::make_unique<ViewPort>(1, 1, currDirLight, m_shadowFrameBufferDebug.get());
+}
+
+
+void Renderer::InitializeFrameBuffers()
+{
+    // Initialize forward render buffer
+    TextureDesc colorTex = {
+        .texFormat = TextureFormat::RGB, .texIntFormat = TextureInternalFormat::RGB_8, .mipLevels = 1,
+        .uWrapping = TextureWrapping::ClampToEdge, .vWrapping = TextureWrapping::ClampToEdge,
+        .width = m_width, .height = m_height, .magFilter = TextureFilter::Linear, .minFilter = TextureFilter::Linear
+    };
+    std::shared_ptr<Texture> colorRenderTexture = std::make_shared<Texture>(colorTex);
+
+    RenderBufferDesc depthStencilRenderBufferDesc = {
+        .intFormat = RenderBufferInternalFormat::DEPTH24_STENCIL_8, .width = m_width, .height = m_height
+    };
+    std::shared_ptr<RenderBuffer> depthStencilRenderBuffer = std::make_shared<RenderBuffer>(
+        depthStencilRenderBufferDesc);
+
+    std::vector<FrameBufferAttachment> colorAttachments = {
+        {.attachment = colorRenderTexture, .typeAttachment = FrameBufferTypeAttachment::Color}
+    };
+    std::vector<FrameBufferAttachment> depthStencAttachments = {
+        {.attachment = depthStencilRenderBuffer, .typeAttachment = FrameBufferTypeAttachment::DepthStencil}
+    };
+    m_forwardFrameBuffer = std::make_unique<FrameBuffer>(colorAttachments, depthStencAttachments, m_width, m_height);
+    m_forwardFrameBuffer->SetName("Forward framebuffer");
+
+
+    //Initialize post process frame buffer
+    TextureDesc colorTexSRGB = {
+        .texFormat = TextureFormat::RGB, .texIntFormat = TextureInternalFormat::SRGB8, .mipLevels = 1,
+        .uWrapping = TextureWrapping::ClampToEdge, .vWrapping = TextureWrapping::ClampToEdge,
+        .width = m_width, .height = m_height, .magFilter = TextureFilter::Linear, .minFilter = TextureFilter::Linear
+    };
+    auto colorTexPostProcess = std::make_shared<Texture>(colorTexSRGB);
+    std::vector<FrameBufferAttachment> postProcessEffectsColorAttachments = {
+        {.attachment = colorTexPostProcess, .typeAttachment = FrameBufferTypeAttachment::Color}
+    };
+    std::vector<FrameBufferAttachment> emptyDepthStencAttach = {};
+    m_postProcessFrameBuffer = std::make_unique<FrameBuffer>(postProcessEffectsColorAttachments, emptyDepthStencAttach,
+                                                             m_width, m_height);
+    m_postProcessFrameBuffer->SetName("Post process frame buffer");
+
+
+    //Frame buffer for shadow mapping
+    TextureDesc depthTexDesc = {
+        .texFormat = TextureFormat::DEPTH, .texIntFormat = TextureInternalFormat::DEPTH24, .mipLevels = 1,
+        .uWrapping = TextureWrapping::ClampToBorder, .vWrapping = TextureWrapping::ClampToBorder,
+        .width = 1024, .height = 1024, .magFilter = TextureFilter::Linear, .minFilter = TextureFilter::Linear
+    };
+    auto depthTex = std::make_shared<Texture>(depthTexDesc);
+
+
+    std::vector<FrameBufferAttachment> depthShadowAttachment = {
+        {.attachment = depthTex, .typeAttachment = FrameBufferTypeAttachment::Depth}
+    };
+    std::vector<FrameBufferAttachment> colorShadowAttachments = {};
+    m_shadowFrameBuffer = std::make_unique<FrameBuffer>(colorShadowAttachments, depthShadowAttachment, 1024,
+                                                        1024);
+    m_shadowFrameBuffer->SetDrawColorAttachment(-1);
+    m_shadowFrameBuffer->SetReadColorAttachment(-1);
+    m_shadowFrameBuffer->SetName("ShadowFrameBuffer");
+
+
+    // Initialize MSAA render buffers
+
+    for (int i = 0; i < m_msaaFB.size(); i++)
+    {
+        unsigned int amountSamples = 2;
+        if (static_cast<MSAA>(i) == MSAA::SAMPLE2)
+        {
+            amountSamples = 2;
+        }
+        else if (static_cast<MSAA>(i) == MSAA::SAMPLE4)
+        {
+            amountSamples = 4;
+        }
+        else if (static_cast<MSAA>(i) == MSAA::SAMPLE8)
+        {
+            amountSamples = 8;
+        }
+        TextureDesc colorTexDescMSAA = {
+            .texFormat = TextureFormat::RGB, .texIntFormat = TextureInternalFormat::RGB_8, .mipLevels = 1,
+            .uWrapping = TextureWrapping::ClampToEdge, .vWrapping = TextureWrapping::ClampToEdge,
+            .width = m_width, .height = m_height, .magFilter = TextureFilter::Linear,
+            .minFilter = TextureFilter::Linear,
+            .texType = TextureType::Texture_2D_Multisample, .amountSamples = amountSamples
+        };
+        std::shared_ptr<Texture> colorTexMSAA4 = std::make_shared<Texture>(colorTexDescMSAA);
+        RenderBufferDesc depthStencilRenderBufferDescMSAA = {
+            .intFormat = RenderBufferInternalFormat::DEPTH24_STENCIL_8,
+            .renderBufferType = RenderBufferType::Multisampled,
+            .amountSamples = amountSamples,
+            .width = m_width,
+            .height = m_height
+
+        };
+
+        std::shared_ptr<RenderBuffer> depthStencilRenderBufferMSAA = std::make_shared<RenderBuffer>(
+            depthStencilRenderBufferDescMSAA);
+
+        std::vector<FrameBufferAttachment> colorAttachmentsMSAA = {
+            {.attachment = colorTexMSAA4, .typeAttachment = FrameBufferTypeAttachment::Color}
+        };
+        std::vector<FrameBufferAttachment> depthStencAttachmentsMSAA = {
+            {.attachment = depthStencilRenderBufferMSAA, .typeAttachment = FrameBufferTypeAttachment::DepthStencil}
+        };
+        m_msaaFB[i] = std::make_unique<FrameBuffer>(colorAttachmentsMSAA, depthStencAttachmentsMSAA, m_width, m_height);
+        m_msaaFB[i]->SetName("Msaa framebuffer " + std::to_string(amountSamples));
+    }
+
+    //Initialize shadow debug frameBuffer
+    TextureDesc texDescColorShadowDebug = {
+        .texFormat = TextureFormat::RGB, .texIntFormat = TextureInternalFormat::SRGB8, .mipLevels = 1,
+        .uWrapping = TextureWrapping::ClampToEdge, .vWrapping = TextureWrapping::ClampToEdge,
+        .width = 1024, .height = 1024, .magFilter = TextureFilter::Linear, .minFilter = TextureFilter::Linear
+    };
+    auto texColorShadowDebug = std::make_shared<Texture>(texDescColorShadowDebug);
+
+
+    std::vector<FrameBufferAttachment> colorShadowDebugAttachments = {
+        {.attachment = texColorShadowDebug, .typeAttachment = FrameBufferTypeAttachment::Color}
+    };
+
+    m_shadowFrameBufferDebug = std::make_unique<FrameBuffer>(colorShadowDebugAttachments, emptyDepthStencAttach, 1024,
+                                                             1024);
+}
+
 
 void Renderer::BindTexture(Texture* texture)
 {
@@ -126,6 +264,7 @@ void Renderer::SortRenderItems()
     ZoneScoped;
 
 
+    //Sort visible entities for cam
     const auto& activeCamera = m_currScene->GetActiveCamera();
     for (const auto& sceneEntity : m_visibleEntities)
     {
@@ -208,28 +347,87 @@ void Renderer::SortRenderItems()
             m_normalPassEntities.push_back(sceneEntity);
         }
     }
+
+    //Sort visible entities for light
+
+    for (auto sceneEntity : m_visibleLightEntities)
+    {
+        auto mesh = sceneEntity->GetModelRenderInfo()->GetMesh();
+
+        if (mesh->GetUsingInstancing())
+        {
+            const auto& submeshes = mesh->GetSubMeshes();
+            for (unsigned int i = 0; i < submeshes.size(); i++)
+            {
+                DrawKeyInstancingShadow drawKey = {
+                    .mesh = mesh, .submeshIndex = i,
+
+                };
+
+                if (!m_drawKeyToShadowInstanceItem.contains(drawKey))
+                {
+                    m_drawKeyToShadowInstanceItem[drawKey] = {.mesh = mesh, .transforms = {}};
+                }
+
+                m_drawKeyToShadowInstanceItem.at(drawKey).transforms.push_back(sceneEntity->GetWorldMat());
+            }
+        }
+        else
+        {
+            m_shadowPassEntities.push_back(sceneEntity);
+        }
+    }
+
+
+    // Sort entities for frustum pass
+    if (m_renderFrustums)
+    {
+        for (auto& camEntity : m_currScene->GetCameras())
+        {
+            if (camEntity->GetComponent<Camera>()->GetViewFrustum())
+            {
+                m_frustumPass.push_back(camEntity);
+            }
+        }
+    }
 }
 
 void Renderer::RenderScene()
 {
     ZoneScoped;
 
-    m_forwardFrameBuffer->BindFrameBuffer();
+    //Clean default FB
+    glBindBuffer(GL_FRAMEBUFFER, 0);
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
-    BindPerFrameUBOSAndSSBO();
+
+    BindFrameBuffer();
+
+    auto resolvedFB = ResolveFrameBuffer();
+    resolvedFB->CleanFrameBuffer(BlitMode::COLOR | BlitMode::DEPTH | BlitMode::STENCIL, {}, 0);
+    m_shadowFrameBuffer->CleanFrameBuffer(BlitMode::DEPTH);
+
+
+    UploadDataPerFrameUBOSAndSSBO();
 
     if (!m_currScene)
     {
         std::cout << "There is no scene assigned to the renderer" << std::endl;
         return;
     }
-    FrustumCulling();
 
+    FrustumCulling();
     SortRenderItems();
+    m_shadowViewPort->BindViewPort();
+    ShadowPass();
+    InstancingShadowPass();
+    BindFrameBuffer();
+    m_sceneViewport->BindViewPort();
+
 
     BBPass();
+    FrustumPass();
 
     // Draw opaque
     for (auto entity : m_opaqueCutOutEntities)
@@ -309,7 +507,10 @@ void Renderer::RenderScene()
     glStencilMask(0xFF);
     glDisable(GL_STENCIL_TEST);
 
+    ResolveMSAAFrameBuffer();
+    ShadowPassDebug();
     FullScreenQuadPass();
+
 
     PrintFrustumCullingResults();
     ClearRenderData();
@@ -329,6 +530,33 @@ void Renderer::PrintFrustumCullingResults()
             std::endl;
         m_lastTimeDebugPrint = currTime;
     }
+}
+
+void Renderer::ResolveMSAAFrameBuffer()
+{
+    if (!m_usingMSAA)
+    {
+        return;
+    }
+    auto currMsaaFB = m_msaaFB[static_cast<int>(m_msaaMode)].get();
+
+    currMsaaFB->BlitFrameBuffer(m_forwardFrameBuffer.get(), BlitMode::COLOR, BlitFilter::Linear, 0, 0, m_width,
+                                m_height,
+                                0, 0, m_width, m_height);
+}
+
+void Renderer::BindFrameBuffer()
+{
+    ResolveFrameBuffer()->BindFrameBuffer();
+}
+
+FrameBuffer* Renderer::ResolveFrameBuffer()
+{
+    if (!m_usingMSAA)
+    {
+        return m_forwardFrameBuffer.get();
+    }
+    return m_msaaFB[static_cast<int>(m_msaaMode)].get();
 }
 
 void Renderer::UploadMaterialProperties(const Material* material, Shader* shader)
@@ -356,9 +584,11 @@ void Renderer::UploadMaterialProperties(const Material* material, Shader* shader
 
         shader->setUniformPerName(uniformName, materialProperty);
     }
+    shader->setUniformPerName(ShaderBasicProperties::UsingBlin, m_usingBlin);
 
 
     // Upload material dynamic
+
     const auto& dynamicPropertiesMaterial = material->GetShaderUniformValues();
     this->UploadUniformProperties(dynamicPropertiesMaterial, shader);
 }
@@ -367,7 +597,7 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
 {
     const auto& activeProperties = shader->GetActiveProperties();
     const auto& lights = m_currScene->GetLights();
-    const auto& cameras = m_currScene->GetCameras();
+    auto activeCamera = m_currScene->GetActiveCamera()->GetComponent<Camera>();
 
 
     UploadLightProperties(shader);
@@ -409,9 +639,8 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
                                       lightColor);
         }
-        else if (shaderProperty == ShaderBasicProperties::EyePosition && !cameras.empty())
+        else if (shaderProperty == ShaderBasicProperties::EyePosition && activeCamera)
         {
-            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto cameraPosition = UniformValue{activeCamera->GetEntity()->GetWorldPos()};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty),
                                       cameraPosition);
@@ -456,15 +685,13 @@ void Renderer::UploadPerFrameProperties(Shader* shader)
                                       lightPosition);
         }
 
-        else if (shaderProperty == ShaderBasicProperties::NearPlane && !cameras.empty())
+        else if (shaderProperty == ShaderBasicProperties::NearPlane)
         {
-            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto nearPlane = UniformValue{activeCamera->GetNearPlane()};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(shaderProperty), nearPlane);
         }
-        else if (shaderProperty == ShaderBasicProperties::FarPlane && !cameras.empty())
+        else if (shaderProperty == ShaderBasicProperties::FarPlane)
         {
-            const auto& activeCamera = cameras[0]->GetComponent<Camera>();
             auto farPlane = UniformValue{activeCamera->GetFarPlane()};
             shader->setUniformPerName(Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::FarPlane), farPlane);
         }
@@ -511,6 +738,17 @@ void Renderer::UploadUniformProperties(const std::unordered_map<std::string, Uni
     }
 }
 
+void Renderer::UploadShadowProperties(Shader* shader)
+{
+    auto shadowMap = m_shadowFrameBuffer->GetDepthAttachmentTexture();
+    if (shadowMap)
+    {
+        shadowMap->SetTextureSlot(SHADOW_MAP_SLOT);
+        shadowMap->BindTexture();
+        shader->setUniformPerName(ShaderBasicProperties::ShadowMap, shadowMap);
+    }
+}
+
 void Renderer::UploadPerModelProperties(Shader* shader, const ModelRenderInfo* object)
 {
     const auto& activeShaderProperties = shader->GetActiveProperties();
@@ -544,8 +782,24 @@ void Renderer::FrustumCulling()
     ZoneScoped;
     std::vector<Entity*> visibleEntities = {};
     const auto& activeCam = m_currScene->GetActiveCamera();
+    const auto& activeCamComponent = activeCam->GetComponent<Camera>();
+    activeCamComponent->CalculateFrustum(static_cast<float>(m_width) / static_cast<float>(m_height));
 
-    auto camFrustum = CalculateFrustumCamera();
+    Light* lightWithShadowsDir = nullptr;
+    for (const auto& lightEntity : m_currScene->GetLights())
+    {
+        auto lightComponent = lightEntity->GetComponent<Light>();
+
+        if (!lightComponent)
+        {
+            continue;
+        }
+        if (lightComponent->GetLightType() == LightType::DirectionalLight && lightComponent->GetCastShadows())
+        {
+            lightWithShadowsDir = lightComponent;
+            break;
+        }
+    }
 
 
     for (const auto& sceneEntity : m_currScene->GetEntities())
@@ -554,6 +808,10 @@ void Renderer::FrustumCulling()
 
 
         if (!renderInfo)
+        {
+            continue;
+        }
+        if (!renderInfo->IsEnabled())
         {
             continue;
         }
@@ -566,13 +824,30 @@ void Renderer::FrustumCulling()
             continue;
         }
 
-        if (worldBoundingVol->IsOnFrustum(camFrustum))
+        if (activeCamComponent->IsInViewFrustum(worldBoundingVol))
         {
             m_visibleEntities.push_back(sceneEntity.get());
             if (m_renderBB)
             {
                 m_worldBBVolumes.push_back(sceneEntity.get());
             }
+        }
+
+        if (!lightWithShadowsDir)
+        {
+            continue;
+        }
+
+        lightWithShadowsDir->GetViewMat();
+        lightWithShadowsDir->GetOrthoProjMatFromLightFrustum(
+            activeCamComponent->GetProjMatrix(
+                static_cast<float>(m_width) / static_cast<float>(m_height)) * activeCamComponent->GetViewMatrix());
+        lightWithShadowsDir->CalculateFrustum();
+
+
+        if (lightWithShadowsDir->IsInViewFrustum(worldBoundingVol))
+        {
+            m_visibleLightEntities.push_back(sceneEntity.get());
         }
     }
 }
@@ -592,17 +867,6 @@ Frustum Renderer::CalculateFrustumCamera()
 
     const glm::vec3 camFrontMulFar = camForward * activeCam->GetFarPlane();
 
-    auto middleFarP = camEntity->GetWorldPos() + camFrontMulFar;
-    auto rightMiddleFarP = camEntity->GetWorldPos() + camFrontMulFar + camEntity->GetRight() * halfHSide;
-    auto leftMiddleFarP = camEntity->GetWorldPos() + camFrontMulFar - camEntity->GetRight() * halfHSide;
-    auto upMiddleFarP = camEntity->GetWorldPos() + camFrontMulFar + camEntity->GetUp() * halfVSide;
-    auto bottomBiddleFarP = camEntity->GetWorldPos() + camFrontMulFar - camEntity->GetUp() * halfVSide;
-
-    // auto rightMiddleNearP
-    // auto leftMiddleNearP
-    // auto upMiddleNearP
-    // auto bottomBiddleNearP
-
 
     camFrustum.m_near = Plane(camEntity->GetWorldPos() + activeCam->GetNearPlane() * camForward,
                               camForward);
@@ -616,22 +880,47 @@ Frustum Renderer::CalculateFrustumCamera()
                              glm::cross(camFrontMulFar + camEntity->GetUp() * halfVSide, camEntity->GetRight()));
     camFrustum.m_down = Plane(camEntity->GetWorldPos(),
                               glm::cross(camEntity->GetRight(), camFrontMulFar - camEntity->GetUp() * halfVSide));
-    // camFrustum.m_near = Plane(camEntity->GetWorldPos() + activeCam->GetNearPlane() * camForward,
-    //                           camForward);
-    // camFrustum.m_far = Plane(camEntity->GetWorldPos() + camForward + camFrontMulFar, -camForward);
-    // camFrustum.m_right = Plane(camEntity->GetWorldPos(),
-    //                            glm::cross(camFrontMulFar + camEntity->GetRight() * halfHSide, camEntity->GetUp()));
-    // camFrustum.m_left = Plane(camEntity->GetWorldPos(),
-    //                           glm::cross(camEntity->GetUp(), camFrontMulFar - camEntity->GetRight() * halfHSide));
-    //
-    // camFrustum.m_top = Plane(camEntity->GetWorldPos(),
-    //                          glm::cross(camEntity->GetRight(), camFrontMulFar - camEntity->GetUp() * halfVSide));
-    // camFrustum.m_down = Plane(camEntity->GetWorldPos(),
-    //                           glm::cross(camFrontMulFar + camEntity->GetUp() * halfVSide, camEntity->GetRight()));
 
 
     return camFrustum;
 }
+
+
+void Renderer::ShadowPassDebug()
+{
+    if (!m_debugPassShadowMap)
+    {
+        return;
+    }
+    m_shadowDebugViewPort->BindViewPort();
+    m_shadowFrameBufferDebug->BindFrameBuffer();
+
+    m_shadowFrameBufferDebug->CleanFrameBuffer(BlitMode::COLOR, {.color = glm::vec4(1.0f)}, 0);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_CULL_FACE);
+
+    if (m_gammaCorrection)
+    {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    }
+
+    auto shadowPassDebugShader = ShaderManager::GetDefaultShader(DefaultShader::ShadowPassDebug);
+    shadowPassDebugShader->Use();
+    UploadShadowProperties(shadowPassDebugShader.get());
+
+    glBindVertexArray(m_fullScreenQuad->GetVao());
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+
+    glEnable(GL_DEPTH_TEST);
+    if (m_gammaCorrection)
+    {
+        glDisable(GL_FRAMEBUFFER_SRGB);
+    }
+    SetFaceCulling(m_faceCulling);
+}
+
 
 void Renderer::GenericPass(const ModelRenderInfo* renderInfo)
 {
@@ -653,6 +942,7 @@ void Renderer::GenericPass(const ModelRenderInfo* renderInfo)
         UploadMaterialProperties(submeshMaterial.get(), objectShader);
         UploadPerModelProperties(objectShader, renderInfo);
         UploadLightProperties(objectShader);
+        UploadShadowProperties(objectShader);
 
 
         auto indexOffset = (void*)(uintptr_t)(submesh.indexOffset * sizeof(uint32_t));
@@ -783,7 +1073,6 @@ void Renderer::OutlinePass(ModelRenderInfo* renderInfo, OutlineComponent* outlin
     for (unsigned int i = 0; i < submeshes.size(); i++)
     {
         auto submesh = submeshes[i];
-
         auto indexOffset = (void*)(uintptr_t)(submesh.indexOffset * sizeof(uint32_t));
         glDrawElements(GL_TRIANGLES, submesh.indexCount, GL_UNSIGNED_INT, indexOffset);
     }
@@ -808,14 +1097,62 @@ void Renderer::InstancingBorderPass(DrawItemInstancing drawItemInstancing)
 
 void Renderer::SetResolution(int width, int height)
 {
-    m_width = width;
-    m_height = height;
-    glViewport(0, 0, width, height);
-
-    m_forwardFrameBuffer->ResizeColorAttachment(0, width, height);
-    m_forwardFrameBuffer->ResizeDepthAttachment(width, height);
+    // m_width = width;
+    // m_height = height;
+    // glViewport(0, 0, width, height);
+    //
+    //
+    // m_forwardFrameBuffer->ResizeColorAttachment(0, width, height);
+    // m_forwardFrameBuffer->ResizeDepthAttachment(width, height);
+    //
+    // for (int i = 0; i < m_msaaFB.size(); i++)
+    // {
+    //     auto currMSAAFb = m_msaaFB[i].get();
+    //     currMSAAFb->ResizeColorAttachment(0, width, height);
+    //     currMSAAFb->ResizeDepthAttachment(width, height);
+    // }
 }
 
+void Renderer::SetSceneViewPortResolution(unsigned int width, unsigned height)
+{
+    m_width = width;
+    m_height = height;
+
+    m_forwardFrameBuffer->ResizeAttachments(width, height);
+
+
+    for (int i = 0; i < m_msaaFB.size(); i++)
+    {
+        auto currMSAAFb = m_msaaFB[i].get();
+        currMSAAFb->ResizeAttachments(width, height);
+    }
+
+    m_postProcessFrameBuffer->ResizeAttachments(width, height);
+}
+
+
+#define X(name, val) #name
+
+const std::vector<std::string>& Renderer::GetFaceCullingNames()
+{
+    static std::vector<std::string> faceCullNames = {ENUM_FACE_CULLING(X)};
+    return faceCullNames;
+}
+
+const std::vector<std::string>& Renderer::GetPostProcessEffectNames()
+{
+    static std::vector<std::string> postProcessNames = {ENUM_FACE_POST_PROCESS_EFFECT(X)};
+    return postProcessNames;
+}
+
+const std::vector<std::string>& Renderer::GetMSAANames()
+{
+    static std::vector<std::string> msaaNames = {MSAA_MODE_ENUM(X)};
+    return msaaNames;
+}
+
+
+#undef X
 
 void Renderer::SetFaceCulling(FaceCulling faceCulling)
 {
@@ -847,6 +1184,19 @@ void Renderer::SetFaceCulling(int faceCulling)
     SetFaceCulling(static_cast<FaceCulling>(faceCulling));
 }
 
+void Renderer::SetUsingMSAA(bool usingMsaa)
+{
+    m_usingMSAA = usingMsaa;
+    if (m_usingMSAA)
+    {
+        glEnable(GL_MULTISAMPLE);
+    }
+    else
+    {
+        glDisable(GL_MULTISAMPLE);
+    }
+}
+
 
 void Renderer::InstancingPass(const DrawItemInstancing& instancingDrawItem)
 {
@@ -867,6 +1217,7 @@ void Renderer::InstancingPass(const DrawItemInstancing& instancingDrawItem)
             Shader::ShaderPropertyEnumToStr(ShaderBasicProperties::NormalMatrix), uniformNormalMatrix);
     }
     UploadLightProperties(shader);
+    UploadShadowProperties(shader);
     auto submesh = submeshes[instancingDrawItem.submeshIndex];
 
 
@@ -890,12 +1241,20 @@ void Renderer::ClearRenderData()
     {
         instancingDrawItem.transforms.clear();
     }
+    for (auto& [drawKey, shadowInstancingDrawItem] : m_drawKeyToShadowInstanceItem)
+    {
+        shadowInstancingDrawItem.transforms.clear();
+    }
     m_opaqueCutOutEntities.clear();
     m_semiTransparentEntities.clear();
     m_borderPassEntities.clear();
     m_visibleEntities.clear();
     m_worldBBVolumes.clear();
     m_normalPassEntities.clear();
+    m_shadowPassEntities.clear();
+    m_visibleLightEntities.clear();
+    m_frustumPass.clear();
+
 
     m_totalRenderableEntities = 0;
 }
@@ -932,6 +1291,42 @@ void Renderer::BBPass()
         glDrawArrays(GL_POINTS, 0, 1);
     }
 }
+
+void Renderer::FrustumPass()
+{
+    if (!m_renderFrustums)
+    {
+        return;
+    }
+
+    auto currCam = m_currScene->GetActiveCamera()->GetComponent<Camera>();
+    auto frustumViewerShader = ShaderManager::GetDefaultShader(DefaultShader::FrustumViewer);
+    frustumViewerShader->Use();
+
+    for (auto& frustumEntity : m_frustumPass)
+    {
+
+        auto frustumCamComponent = frustumEntity->GetComponent<Camera>();
+        frustumViewerShader->setUniformPerName(ShaderBasicProperties::ViewTransform,
+                                               frustumCamComponent->GetViewFrustum());
+        frustumViewerShader->setUniformPerName(ShaderBasicProperties::ProjectionTransform,
+                                               frustumCamComponent->GetProjMatrix(
+                                                   static_cast<float>(m_width) / static_cast<float>(m_height)));
+
+        glDrawElements(GL_POINTS, 0, GL_UNSIGNED_INT, nullptr);
+    }
+    // auto currDirLight = m_currScene->GetCurrDirLight();
+    // if (!currDirLight)
+    // {
+    //     return;
+    // }
+    // auto currDirLightComponent = currDirLight->GetComponent<Light>();
+    // if (!currDirLightComponent)
+    // {
+    //     return;
+    // }
+}
+
 
 void Renderer::NormalPass()
 {
@@ -1008,6 +1403,70 @@ void Renderer::SkyboxPass()
     glDepthFunc(GL_LESS);
 }
 
+unsigned int Renderer::GetPostProccesEffectColTex() const
+{
+    return m_postProcessFrameBuffer->GetColorAttachmentTexture(0)->GetTextureId();
+}
+
+void Renderer::ShadowPass()
+{
+    m_shadowFrameBuffer->BindFrameBuffer();
+    auto shadowPassShader = ShaderManager::GetDefaultShader(DefaultShader::ShadowPass);
+    shadowPassShader->Use();
+
+
+    for (auto entity : m_shadowPassEntities)
+    {
+        auto mesh = entity->GetModelRenderInfo()->GetMesh();
+        glBindVertexArray(mesh->GetVao());
+
+        shadowPassShader->setUniformPerName(ShaderBasicProperties::ModelTransform, entity->GetWorldMat());
+
+        for (auto submesh : mesh->GetSubMeshes())
+        {
+            auto indexOffset = (void*)(uintptr_t)(submesh.indexOffset * sizeof(uint32_t));
+            glDrawElements(GL_TRIANGLES, submesh.indexCount, GL_UNSIGNED_INT, indexOffset);
+        }
+    }
+}
+
+void Renderer::InstancingShadowPass()
+{
+    for (const auto& [drawKeyShadow, instanceShadowItem] : m_drawKeyToShadowInstanceItem)
+    {
+        if (instanceShadowItem.transforms.size() == 0)
+        {
+            continue;
+        }
+        auto mesh = instanceShadowItem.mesh;
+        auto instancingLayout = mesh->GetVertexLayout();
+        int transformAttrLoc = instancingLayout->GetVertexAttribLocation(VertexPredefinedAttributes::TRANSFORM);
+
+
+        auto shadowPassInstancingShader = ShaderManager::GetDefaultShader(
+            DefaultShader::ShadowPassInstancing, transformAttrLoc);
+
+
+        if (!shadowPassInstancingShader)
+        {
+            std::cerr << "Was not found an apropiated shader for the shadow pass instancing for the mesh " << mesh->
+                GetMeshKey() << std::endl;
+            continue;
+        }
+        shadowPassInstancingShader->Use();
+
+        auto sizeTransforms = instanceShadowItem.transforms.size() * sizeof(glm::mat4);
+        mesh->SetInstancesTransform(instanceShadowItem.transforms.data(), sizeTransforms);
+        glBindVertexArray(mesh->GetVao());
+        for (const auto& submesh : mesh->GetSubMeshes())
+        {
+            auto indexOffset = (void*)(uintptr_t)(submesh.indexOffset * sizeof(uint32_t));
+            glDrawElementsInstanced(GL_TRIANGLES, submesh.indexCount, GL_UNSIGNED_INT, indexOffset,
+                                    instanceShadowItem.transforms.size());
+        }
+    }
+}
+
 
 void Renderer::FullScreenQuadPass()
 {
@@ -1022,7 +1481,14 @@ void Renderer::FullScreenQuadPass()
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_STENCIL_TEST);
     glDisable(GL_CULL_FACE);
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    if (m_gammaCorrection)
+    {
+        glEnable(GL_FRAMEBUFFER_SRGB);
+    }
+    m_sceneViewport->BindViewPort();
+    m_postProcessFrameBuffer->BindFrameBuffer();
+
 
     auto fullScreenQuadShader = ShaderManager::GetDefaultShader(DefaultShader::FullScreenQuad);
     fullScreenQuadShader->Use();
@@ -1059,10 +1525,20 @@ void Renderer::FullScreenQuadPass()
     glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
 
     glEnable(GL_DEPTH_TEST);
+    if (m_gammaCorrection)
+    {
+        glDisable(GL_FRAMEBUFFER_SRGB);
+    }
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
     SetFaceCulling(m_faceCulling);
+
+    glBlitNamedFramebuffer(m_postProcessFrameBuffer->GetFrameBufferId(), 0, 0, 0, m_width, m_height, 0, 0, m_width,
+                           m_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 }
 
-void Renderer::BindPerFrameUBOSAndSSBO()
+void Renderer::UploadDataPerFrameUBOSAndSSBO()
 {
     auto currCam = m_currScene->GetActiveCamera()->GetComponent<Camera>();
 
@@ -1070,12 +1546,14 @@ void Renderer::BindPerFrameUBOSAndSSBO()
         .viewMatrix = currCam->GetViewMatrix(),
         .projMatrix = currCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height)),
     };
-    m_UBOCamMatrix->BufferUploadData(&camMatrix, 0, sizeof(CamMatrices));
+    bool needsUBOReallocate;
+    m_UBOCamMatrix->BufferUploadData(&camMatrix, 0, sizeof(CamMatrices), needsUBOReallocate);
 
 
     //Upload lights to UBO
 
-    const auto& sceneLights = m_currScene->GetLights();
+
+    auto& sceneLights = m_currScene->GetLights();
 
     if (!sceneLights.empty())
     {
@@ -1091,6 +1569,19 @@ void Renderer::BindPerFrameUBOSAndSSBO()
             m_lightsGpu[i] = light->GetLightGPU();
         }
     }
+    bool needsSSBOReallocate;
+    m_SSBOLights->BufferUploadData(m_lightsGpu.data(), 0, sceneLights.size() * sizeof(LightGPU),
+                                   needsSSBOReallocate);
 
-    m_SSBOLights->BufferUploadData(m_lightsGpu.data(), 0, sceneLights.size() * sizeof(LightGPU));
+    if (auto currDirLight = m_currScene->GetCurrDirLight()->GetComponent<Light>())
+    {
+        CamMatrices lightMatrices = {
+            .viewMatrix = currDirLight->GetViewMat(),
+            .projMatrix = currDirLight->GetOrthoProjMatFromLightFrustum(
+                currCam->GetProjMatrix(static_cast<float>(m_width) / static_cast<float>(m_height)) * currCam->
+                GetViewMatrix()),
+        };
+        m_UBOLightMatrix->BufferUploadData(&lightMatrices, 0, sizeof(camMatrix), needsUBOReallocate);
+        //m_UBOCamMatrix->BufferUploadData(&lightMatrices, 0, sizeof(camMatrix), needsUBOReallocate);
+    }
 }

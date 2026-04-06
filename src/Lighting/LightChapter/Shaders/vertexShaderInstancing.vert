@@ -11,11 +11,16 @@ out vec4 fragCol;
 out vec2 uvFrag;
 out vec3 worldNormal;
 out vec3 worldFragPos;
+out vec4 fragLightClip;
 
-uniform mat4 modelTransform;
 layout(std140, binding = 0) uniform CameraData{
     mat4 viewTransform;
     mat4 projectionTransform;
+};
+
+layout(std140, binding = 2) uniform LightData{
+    mat4 lightViewTransform;
+    mat4 lightProjectionTransform;
 };
 //uniform mat3 normalMatrix;
 
@@ -24,7 +29,9 @@ void main() {
 
     gl_Position = projectionTransform * viewTransform * worldPos;
 
-    mat3 normalMatrix = transpose(inverse(mat3(modelTransform)));
+    fragLightClip = lightProjectionTransform*lightViewTransform*worldPos;
+
+    mat3 normalMatrix = transpose(inverse(mat3(worldTransform)));
     fragCol = vertexCol;
     worldFragPos = worldPos.xyz;
     worldNormal = normalize(normalMatrix * normal);

@@ -14,8 +14,8 @@
 #include "Scene.h"
 #include "BV/AABB.h"
 
-AssimpLoader::AssimpLoader(Scene* scene, const std::string& filePath,
-                           std::shared_ptr<VertexLayout> targetVertexLayout)
+void AssimpLoader::SetLoadInfo(Scene* scene, const std::string& filePath,
+                               std::shared_ptr<VertexLayout> targetVertexLayout)
 {
     m_scene = scene;
     m_filePath = filePath;
@@ -23,8 +23,17 @@ AssimpLoader::AssimpLoader(Scene* scene, const std::string& filePath,
     CalculateBaseLocalPath();
 }
 
+AssimpLoader::AssimpLoader()
+{
+}
+
 Entity* AssimpLoader::ImportScene()
 {
+    if (!m_scene)
+    {
+        std::cout << "There is no scene currently bound, you must first execute the function SetLoadInfo" << std::endl;
+        return nullptr;
+    }
     Assimp::Importer importer;
     const aiScene* aiScene = importer.ReadFile(m_filePath.c_str(),
                                                aiProcess_Triangulate | aiProcess_CalcTangentSpace | aiProcess_FlipUVs |
@@ -231,6 +240,13 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
 
         material->SetProperty(MaterialPropertyEnum::Shininess, static_cast<int>(shininess));
 
+        aiColor3D diffuseColor;
+        if (aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS)
+        {
+            glm::vec3 glmColor = glm::vec3(diffuseColor.r, diffuseColor.g, diffuseColor.b);
+            material->SetProperty(MaterialPropertyEnum::Diffuse, glmColor);
+        }
+
 
         // for (unsigned int i = 1; i < aiTextureType_GLTF_METALLIC_ROUGHNESS + 1; i++)
         // {
@@ -254,28 +270,25 @@ void AssimpLoader::ProcessSubmesh(aiMesh* aiMesh, const std::string& meshName,
                 " spec layers. Only one layer is supported" << std::endl;
 
             ProcessTexture(aiMaterial, aiTextureType_SPECULAR,
-                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Specular), specTextures);
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Specular), specTextures, false);
             material->SetProperty(MaterialPropertyEnum::Specular, specTextures[0]);
+            material->SetProperty(MaterialPropertyEnum::HasSpecularTexture, true);
         }
 
 
         if (albedoLayers > 0)
         {
             ProcessTexture(aiMaterial, aiTextureType_BASE_COLOR,
-                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures);
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures,
+                           true);
         }
         else if (diffLayers > 0)
         {
             ProcessTexture(aiMaterial, aiTextureType_DIFFUSE,
-                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures);
+                           Material::MaterialPropertyNameToString(MaterialPropertyEnum::Diffuse), baseColTextures,
+                           true);
         }
 
-        aiColor3D diffuseColor;
-        if (aiMaterial->Get(AI_MATKEY_COLOR_DIFFUSE, diffuseColor) == AI_SUCCESS)
-        {
-            glm::vec3 glmColor = glm::vec3(diffuseColor.r, diffuseColor.g, diffuseColor.b);
-            material->SetProperty(MaterialPropertyEnum::Diffuse, glmColor);
-        }
 
         if (!baseColTextures.empty())
         {
@@ -388,7 +401,7 @@ void AssimpLoader::CopyAiVectorToGlmVector(const aiVector3t<float>& aiVector, gl
 }
 
 void AssimpLoader::ProcessTexture(aiMaterial* aiMaterial, aiTextureType aiTextureType, std::string typeName,
-                                  std::vector<std::shared_ptr<Texture>>& textures)
+                                  std::vector<std::shared_ptr<Texture>>& textures, bool isSRGB)
 {
     unsigned int amountTextures = aiMaterial->GetTextureCount(aiTextureType);
 
@@ -399,16 +412,36 @@ void AssimpLoader::ProcessTexture(aiMaterial* aiMaterial, aiTextureType aiTextur
         aiMaterial->GetTexture(aiTextureType, i, &texPath);
         std::string texturePath(texPath.C_Str());
         texturePath = m_localPath + texturePath;
-
         std::shared_ptr<Texture> texture = AssetManager::GetTexture(texturePath);
-        if (!texture)
+        if (texture)
         {
-            texture = std::make_shared<Texture>();
-            texture->LoadImageFromFile(texturePath);
-            AssetManager::AddTexture(texture);
+            textures.push_back(texture);
+            continue;
+        }
+        texture = std::make_shared<Texture>();
+        const aiTexture* embededTexture = m_aiScene->GetEmbeddedTexture(texPath.C_Str());
+
+        if (embededTexture)
+        {
+            if (embededTexture->mHeight == 0)
+            {
+                texture->LoadImageRaw(texturePath, embededTexture->mWidth,
+                                      reinterpret_cast<const unsigned char*>(embededTexture->pcData), true, isSRGB);
+            }
+            else
+            {
+                // I dont know what to do yet xd
+            }
+        }
+        else
+        {
+            texture->LoadImageFromFile(texturePath, true, isSRGB);
         }
 
         textures.push_back(texture);
+
+
+        AssetManager::AddTexture(texture);
     }
 }
 
@@ -421,4 +454,16 @@ void AssimpLoader::CalculateBaseLocalPath()
     {
         m_localPath = m_localPath.substr(0, lastIndexSlash + 1);
     }
+}
+
+void AssimpLoader::CleanLoader()
+{
+    m_aiScene = nullptr;
+    m_rootEntity = nullptr;
+    m_targetVertexLayout = nullptr;
+    m_activeColorSets.clear();
+    m_activeColorSets.clear();
+    m_filePath = "";
+    m_localPath = "";
+    m_scene = nullptr;
 }

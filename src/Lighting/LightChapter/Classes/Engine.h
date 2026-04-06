@@ -25,6 +25,9 @@ public:
     void GameLoop();
     static double GetTime();
     static MouseHandler* GetMouseHandler();
+    void CheckProcessSceneViewInput(bool cursorInSceneViewport);
+    void SetCameraSpeed(float speed);
+    float GetCameraSpeed();
 
 
     Scene* GetCurrScene() { return m_scene.get(); }
@@ -47,6 +50,7 @@ private:
     static double m_currFrameTime;
     static double m_lastFrameTime;
     bool m_processInput = true;
+    bool m_startedProcessingInput = false;
 
 
     void OnChangeWindowResolution(int m_widht, int m_height) const;

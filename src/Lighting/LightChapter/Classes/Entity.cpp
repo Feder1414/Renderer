@@ -140,3 +140,9 @@ void Entity::CopyMembersEntity(Entity* original, Entity* copyEntity)
         copyEntity->SetModelRenderInfo(std::move(renderInfo));
     }
 }
+
+void Entity::SetEntityParent(Entity* entity)
+{
+    m_parent = entity;
+    entity->m_child.push_back(this);
+}

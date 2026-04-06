@@ -15,7 +15,7 @@ class EntityTree : public IWidget
 {
 public:
 
-    EntityTree(Scene* scene) { m_scene = scene; }
+    EntityTree(Scene* scene) : IWidget("Tree panel") { m_scene = scene; }
     void Render() override;
     Event<Entity*> onEntitySelected;
 

@@ -35,7 +35,7 @@ class Entity
 
     Scene* m_scene;
 
-    void SetEntityParent(Entity* entity) { m_parent = entity; }
+
     void UpdateTransform();
 
     glm::mat4 GetRotation() const;
@@ -65,6 +65,7 @@ class Entity
     glm::vec3 m_up = glm::vec3(0.0f, 1.0f, 0.0f);
     glm::vec3 m_right = glm::vec3(1.0f, 0.0f, 0.0f);
 
+    bool m_moved;
     bool m_dirtyChanged = true;
 
 
@@ -73,6 +74,7 @@ class Entity
 
 public:
     Entity();
+    void SetEntityParent(Entity* entity);
     void SetModelRenderInfo(std::unique_ptr<ModelRenderInfo> modelRenderInfo);
 
     void SetId(uuids::uuid id) { m_id = id; }
@@ -127,19 +129,27 @@ public:
     void AddEntityChild(Entity* childEntity)
     {
         m_child.push_back(childEntity);
-        childEntity->SetEntityParent(this);
+        childEntity->m_parent = this;
         childEntity->UpdateTransform();
     }
 
 
-    template <typename ComponentName>
-    ComponentName* GetComponent()
+    template <typename ComponentT>
+    ComponentT* GetComponent()
     {
+        // for (auto& component : m_components)
+        // {
+        //     if (auto casted = dynamic_cast<ComponentName*>(component.get()))
+        //     {
+        //         return casted;
+        //     }
+        // }
+
         for (auto& component : m_components)
         {
-            if (auto casted = dynamic_cast<ComponentName*>(component.get()))
+            if (component->GetComponentId() == ComponentPropertiesMetadata<ComponentT>::GetComponentMetadataId())
             {
-                return casted;
+                return static_cast<ComponentT*>(component.get());
             }
         }
         return nullptr;

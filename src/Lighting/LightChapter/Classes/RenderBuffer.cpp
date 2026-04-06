@@ -28,7 +28,15 @@ RenderBuffer::RenderBuffer(const RenderBufferDesc& renderBufferDesc)
     glCreateRenderbuffers(1, &m_renderBuffer);
     auto intFormat = RenderBufferIntFormatToGlFormat(m_renderBufferDesc.intFormat);
 
-    glNamedRenderbufferStorage(m_renderBuffer, intFormat, m_renderBufferDesc.width, m_renderBufferDesc.height);
+    if (m_renderBufferDesc.renderBufferType == RenderBufferType::Normal)
+    {
+        glNamedRenderbufferStorage(m_renderBuffer, intFormat, m_renderBufferDesc.width, m_renderBufferDesc.height);
+    }
+    else if (m_renderBufferDesc.renderBufferType == RenderBufferType::Multisampled)
+    {
+        glNamedRenderbufferStorageMultisample(m_renderBuffer, m_renderBufferDesc.amountSamples, intFormat,
+                                              m_renderBufferDesc.width, m_renderBufferDesc.height);
+    }
 }
 
 void RenderBuffer::ResizeRenderBuffer(int width, int height)
@@ -36,5 +44,13 @@ void RenderBuffer::ResizeRenderBuffer(int width, int height)
     m_renderBufferDesc.width = width;
     m_renderBufferDesc.height = height;
     auto intFormat = RenderBufferIntFormatToGlFormat(m_renderBufferDesc.intFormat);
-    glNamedRenderbufferStorage(m_renderBuffer, intFormat, m_renderBufferDesc.width, m_renderBufferDesc.height);
+    if (m_renderBufferDesc.renderBufferType == RenderBufferType::Normal)
+    {
+        glNamedRenderbufferStorage(m_renderBuffer, intFormat, m_renderBufferDesc.width, m_renderBufferDesc.height);
+    }
+    else if (m_renderBufferDesc.renderBufferType == RenderBufferType::Multisampled)
+    {
+        glNamedRenderbufferStorageMultisample(m_renderBuffer, m_renderBufferDesc.amountSamples, intFormat,
+                                              m_renderBufferDesc.width, m_renderBufferDesc.height);
+    }
 }

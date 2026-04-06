@@ -13,8 +13,8 @@
 class AABB : public IBoundingVolume
 {
 public:
-    bool IsOnFrustum(const Frustum& frustum) override;
-    bool IsOnForwardPlane(const Plane& plane) override;
+    bool IsOnFrustum(const Frustum& frustum) const override;
+    bool IsOnForwardPlane(const Plane& plane) const override;
     std::unique_ptr<IBoundingVolume> CalculateWorldBB(Entity* entity) override;
     AABB CalculateWorldAABB(Entity* entity) const;
     AABB(const glm::vec3& min, const glm::vec3& max);

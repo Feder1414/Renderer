@@ -11,14 +11,14 @@
 #include "IWidget.h"
 
 
-class ComponentProperty;
-
-class GenericComponent : IWidget
-{
-    std::unordered_map<std::string, std::any> m_genericComponentValues = {};
-
-    GenericComponent(ComponentProperty& property);
-};
+// class ComponentProperty;
+//
+// class GenericComponent : IWidget
+// {
+//     std::unordered_map<std::string, std::any> m_genericComponentValues = {};
+//
+//     GenericComponent(ComponentProperty& property);
+// };
 
 
 #endif //GRAFICOS_GENERICCOMPONENT_H

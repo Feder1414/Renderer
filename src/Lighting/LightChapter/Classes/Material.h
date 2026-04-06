@@ -30,6 +30,8 @@ enum class MaterialPropertyEnum
     Specular,
     Shininess,
     Transparency,
+    HasSpecularTexture,
+    SpecularMaterialSolid,
     Max
 };
 
@@ -51,7 +53,11 @@ class Material
     TransparencyType m_transparencyType = TransparencyType::Opaque;
 
 public:
-    Material(const std::string& materialKey) { m_materialKey = materialKey; };
+    Material(const std::string& materialKey)
+    {
+        m_materialKey = materialKey;
+        SetProperty(MaterialPropertyEnum::HasSpecularTexture, false);
+    };
     void SetUniformValue(const std::string& variableName, const UniformValue& uniformValue);
     void SetProperty(MaterialPropertyEnum materialProperty, const UniformValue& propertyValue);
     void SetShader(Shader* shader) { m_Shader = shader; }

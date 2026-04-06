@@ -64,7 +64,9 @@ enum class ShaderBasicProperties
     Kernel,
     RenderedSceneWidth,
     RenderedSceneHeight,
-    SkyBox
+    SkyBox,
+    UsingBlin,
+    ShadowMap
 };
 
 

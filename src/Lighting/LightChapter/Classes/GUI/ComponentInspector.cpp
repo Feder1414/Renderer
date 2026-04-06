@@ -8,6 +8,8 @@
 
 #include "Entity.h"
 #include "imgui.h"
+#include "Scene.h"
+#include "../../../../GettingStarted/CameraChapter/Classes/Camera.h"
 #include "../../Components/IComponent.h"
 #include "../../Components/Metadata/ComponentProperty.h"
 #include "Metadata/GlobalEnumMetadata.h"
@@ -19,7 +21,7 @@ void ComponentInspector::Render()
     {
         return;
     }
-    if (!ImGui::Begin("Component inspector"))
+    if (!ImGui::Begin(m_windowName.c_str()))
     {
         ImGui::End();
         return;
@@ -302,6 +304,14 @@ void ComponentInspector::RenderGenericComponent(IComponent* component)
         }
         ImGui::PopID();
     }
+
+    if (component->GetComponentId() == ComponentPropertiesMetadata<Camera>::GetComponentMetadataId())
+    {
+        if (ImGui::Button("Use as active camera"))
+        {
+            m_scene->ChangeActiveCamera(m_entity);
+        }
+    }
     ImGui::PopID();
 }
 
@@ -322,4 +332,3 @@ void ComponentInspector::SetTransformComponent()
 void ComponentInspector::UpdateEntityTransform(TransformUpdated transformUpdated)
 {
 }
-

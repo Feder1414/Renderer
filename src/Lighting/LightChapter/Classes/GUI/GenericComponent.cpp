@@ -4,7 +4,7 @@
 
 #include "GenericComponent.h"
 
-GenericComponent::GenericComponent(ComponentProperty& property)
-{
-
-}
+// GenericComponent::GenericComponent(ComponentProperty& property)
+// {
+//
+// }

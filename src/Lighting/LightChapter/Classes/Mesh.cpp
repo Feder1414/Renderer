@@ -84,7 +84,8 @@ void Mesh::CreateBuffers(std::unique_ptr<Buffer>& vao, std::unordered_map<Bindin
             vboDesc = {
                 .name = "vboMesh " + m_meshKey + "index " + std::to_string(static_cast<int>(bindingIndex)),
                 .type = BufferType::Instance,
-                .storage = BufferStorage::DynamicStorage, .size = m_instanceBuffer.capacity * sizeof(glm::mat4)
+                .storage = BufferStorage::DynamicStorage,
+                .size = m_instanceBuffer.capacity * m_instanceBuffer.instanceSize
             };
             vbos[bindingIndex]->CreateBufferRaw(vboDesc, nullptr);
         }
@@ -242,5 +243,16 @@ void Mesh::SetInstancesTransform(const void* data, size_t size)
     auto vboPerInstance = m_bindingIndexToVboInstancing[BindingIndex::Instance].get();
 
 
-    vboPerInstance->BufferUploadData(data, 0, size);
+    bool needsReallocateInstance;
+    vboPerInstance->BufferUploadData(data, 0, size, needsReallocateInstance);
+    if (needsReallocateInstance)
+    {
+        auto instanceBufferStride = m_instancingLayout->GetVboAttribs().at(BindingIndex::Instance).accumulatedSize.
+                                                        back();
+        auto extraRealloc = 1;
+        auto factorRealloc = 1000;
+        vboPerInstance->ResizeWithHelper(m_instanceBuffer.capacity * m_instanceBuffer.instanceSize * factorRealloc,
+                                         size, extraRealloc, data);
+        m_vaoInstancing->ReassignVBOToVAO(vboPerInstance, BindingIndex::Instance, 0, instanceBufferStride);
+    }
 }

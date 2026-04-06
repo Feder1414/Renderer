@@ -125,9 +125,12 @@ void Engine::Initialize()
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    auto io = ImGui::GetIO();
+    auto& io = ImGui::GetIO();
+
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; // Enable Keyboard Controls
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad; // Enable Gamepad Controls
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
     ImGui_ImplGlfw_InitForOpenGL(m_window->GetGLFWWindow(), true);
     // Second param install_callback=true will install GLFW callbacks and chain to existing ones.
@@ -164,13 +167,31 @@ void Engine::InitializeDefaultShaders()
                                                                     "Shaders/SkyBoxFrag.glsl");
 
     ShaderManager::AddDefaultShader(skyboxShader, DefaultShader::Skybox);
+
+    auto shadowPassShader = std::make_shared<Shader>("Shaders/shadowPassVert.glsl",
+                                                     "Shaders/shadowPassFrag.glsl");
+    ShaderManager::AddDefaultShader(shadowPassShader, DefaultShader::ShadowPass);
+
+    for (int i = 3; i < 10; i++)
+    {
+        ShaderPermutatorGenerator::CreateShadowInstancingShader(i);
+    }
+
+    auto shadowPassDebugShader = std::make_shared<Shader>("Shaders/fullScreenQuadVert.glsl",
+                                                          "Shaders/Debug/shadowPassDebugFrag.glsl");
+    ShaderManager::AddDefaultShader(shadowPassDebugShader, DefaultShader::ShadowPassDebug);
+
+    auto frustumViewer = std::make_shared<Shader>("Shaders/Debug/frustumViewerVert.glsl",
+                                                  "Shaders/Debug/frustumViewerFrag.glsl",
+                                                  "Shaders/Debug/frustumViewerGeo.glsl");
+    ShaderManager::AddDefaultShader(frustumViewer, DefaultShader::FrustumViewer);
 }
 
 
 void Engine::SetScene()
 {
     std::unique_ptr<Scene> scene = std::make_unique<Scene>();
-    m_renderer->SetScene(scene.get());
+
 
     //Normal cube
     std::vector<VertexAttribute> verticesLayout = {
@@ -268,14 +289,14 @@ void Engine::SetScene()
 
 
     std::shared_ptr<Texture> woodenContainerDiffuse = std::make_shared<Texture>();
-    woodenContainerDiffuse->LoadImageFromFile("textures/container2Diffuse.png");
+    woodenContainerDiffuse->LoadImageFromFile("textures/container2Diffuse.png", true, true);
 
 
     std::shared_ptr<Texture> woodenContainerSpecular = std::make_shared<Texture>();;
-    woodenContainerSpecular->LoadImageFromFile("textures/container2Specular.png");
+    woodenContainerSpecular->LoadImageFromFile("textures/container2Specular.png", true, false);
 
     std::shared_ptr<Texture> happyFace = std::make_shared<Texture>();
-    happyFace->LoadImageFromFile("textures/awesomeface.png");
+    happyFace->LoadImageFromFile("textures/awesomeface.png", true, true);
 
 
     cubeMaterial->SetUniformValue("happyFace", UniformValue{happyFace});
@@ -347,9 +368,11 @@ void Engine::SetScene()
     spotLightEntity->SetUpdate([](Entity* entity, float deltaTime)
         {
             auto& activeCamera = entity->GetScene()->GetCameras()[0];
-            auto spotLightComponent = entity->GetComponent<Light>();
+            auto camOrientation = activeCamera->GetLocalRot();
+            camOrientation.y -= 180;
+            camOrientation.x = -camOrientation.x;
             entity->SetLocalPos(activeCamera->GetLocalPos());
-            spotLightComponent->m_direction = -activeCamera->GetForward();
+            entity->SetLocalRot(camOrientation);
         }
     );
     spotLightEntity->SetName("SpotLightEntity");
@@ -357,10 +380,17 @@ void Engine::SetScene()
     auto dirLightComponent = std::make_unique<Light>();
     dirLightComponent->m_direction = glm::vec3(-1.0f, -1.0f, -1.0f);
     dirLightComponent->m_lightType = LightType::DirectionalLight;
+    dirLightComponent->SetCastShadows(true);
 
     auto dirLightEntity = std::make_unique<Entity>();
+    dirLightEntity->SetLocalRot(glm::vec3(90.0f, 0.0f, 0.0f));
+
+
     dirLightEntity->SetName("DirLightEntity");
     dirLightEntity->AddComponent(std::move(dirLightComponent));
+    std::unique_ptr<ModelRenderInfo> renderInfoLightEntity(
+        dynamic_cast<ModelRenderInfo*>(pointLightEntity->GetModelRenderInfo()->Clone().release()));
+    dirLightEntity->SetModelRenderInfo(std::move(renderInfoLightEntity));
 
     auto cameraEntity = std::make_unique<Entity>();
 
@@ -379,22 +409,25 @@ void Engine::SetScene()
     float lastTime = glfwGetTime();
 
 
-    // auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShaderInstancing.vert",
-    //                                                "Shaders/fragShaderBackpack.frag");
-    auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShaderInstancing.vert",
+    auto shaderBackPack = std::make_shared<Shader>("Shaders/vertexShader.vert",
                                                    "Shaders/fragShaderBackpack.frag");
     ShaderManager::AddShader(shaderBackPack);
+    auto shaderBackPackInstancing = std::make_shared<Shader>("Shaders/vertexShaderInstancing.vert",
+                                                             "Shaders/fragShaderBackpack.frag");
+    ShaderManager::AddShader(shaderBackPackInstancing);
     //AssimpLoader
     auto pathModel = "assets/survivalBackPack/backpack.obj";
-    auto assimpLoader = std::make_unique<AssimpLoader>(scene.get(), pathModel, verticesShaderLayout);
+    auto assimpLoader = std::make_unique<AssimpLoader>();
+    assimpLoader->SetLoadInfo(scene.get(), pathModel, verticesShaderLayout);
     auto backPackEntity = assimpLoader->ImportScene();
+    assimpLoader->CleanLoader();
 
-    auto shaderBackPackPtr = shaderBackPack.get();
-    auto setShaderChildren = [shaderBackPackPtr](Entity* entity)
+    auto shaderBackPackInstancingPtr = shaderBackPackInstancing.get();
+    auto setShaderChildren = [shaderBackPackInstancingPtr](Entity* entity)
     {
         if (entity->GetModelRenderInfo())
         {
-            entity->GetModelRenderInfo()->SetShader(shaderBackPackPtr);
+            entity->GetModelRenderInfo()->SetShader(shaderBackPackInstancingPtr);
             entity->GetModelRenderInfo()->GetMesh()->SetInstancing();
         }
     };
@@ -404,8 +437,8 @@ void Engine::SetScene()
 
     backPackEntity->SetLocalScale(glm::vec3(0.1, 0.1f, 0.1f));
 
-    auto r = 100.0f;
-    auto amountBackpacks = 1000;
+    auto r = 1000.0f;
+    auto amountBackpacks = 2;
 
     auto xIncrement = 5.0f;
     for (int i = 0; i < amountBackpacks; i++)
@@ -420,7 +453,6 @@ void Engine::SetScene()
             scene->AddEntity(std::move(child));
         }
     }
-
 
 
     auto redWindowTex = std::make_shared<Texture>();
@@ -441,6 +473,69 @@ void Engine::SetScene()
         redWindowEntity->SetModelRenderInfo(std::move(renderInfo));
         scene->AddEntity(std::move(redWindowEntity));
     }
+    assimpLoader->SetLoadInfo(scene.get(), "assets/planetMars/planet.obj", verticesShaderLayout);
+    auto planetEntity = assimpLoader->ImportScene();
+    assimpLoader->CleanLoader();
+
+    planetEntity->ApplyFunctionToChildren([shaderBackPack](Entity* entity)
+    {
+        if (entity->GetModelRenderInfo())
+        {
+            entity->GetModelRenderInfo()->SetShader(shaderBackPack.get());
+        }
+    });
+
+    planetEntity->SetLocalPos(glm::vec3(0.0f, -35, 0.0f));
+    assimpLoader->CleanLoader();
+
+
+    assimpLoader->SetLoadInfo(scene.get(), "assets/Rocks/rock.obj", verticesShaderLayout);
+    auto rockEntity = assimpLoader->ImportScene();
+
+    rockEntity->ApplyFunctionToChildren(setShaderChildren);
+
+
+    float currDegrees = 0;
+    auto degreeIncrement = 1.5;
+
+    auto totalRocks = 1000;
+
+    auto rockRotGen = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(0, 360);
+
+    auto rockScaleGen = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(1, 3);
+
+    auto posY = std::make_unique<RandomCoordinateGenerator<
+        std::mt19937, std::uniform_real_distribution<float>>>(-10, 10);
+
+    float radius = 100;
+    for (int i = 0; i < totalRocks; i++)
+    {
+        std::vector<std::unique_ptr<Entity>> childrenCopiedEntity = {};
+
+        auto copyRockEntity = rockEntity->CopyEntity(childrenCopiedEntity);
+        copyRockEntity->SetEntityParent(planetEntity);
+
+
+        copyRockEntity->SetLocalScale(glm::vec3(rockScaleGen->GetRandom(), rockScaleGen->GetRandom(),
+                                                rockScaleGen->GetRandom()));
+        copyRockEntity->SetLocalRot(
+            glm::vec3(rockRotGen->GetRandom(), rockRotGen->GetRandom(), rockRotGen->GetRandom()));
+
+        auto posX = radius * cos(glm::radians(currDegrees));
+        auto posZ = radius * sin(glm::radians(currDegrees));
+
+        copyRockEntity->SetLocalPos(glm::vec3(posX, posY->GetRandom(), posZ));
+
+        currDegrees += degreeIncrement;
+
+
+        for (auto& copiedEntity : childrenCopiedEntity)
+        {
+            scene->AddEntity(std::move(copiedEntity));
+        }
+    }
 
 
     //Skybox
@@ -456,13 +551,38 @@ void Engine::SetScene()
     };
     std::shared_ptr<Texture> cubeMapTexture = std::make_shared<Texture>();
 
-    cubeMapTexture->LoadCubeMapFromFile(cubeMapFiles, cubeMapTexDesc);
+    cubeMapTexture->LoadCubeMapFromFile(cubeMapFiles, cubeMapTexDesc, true);
 
     auto skyboxCube = BasicShapesMeshGenerator::CreateSkyboxCube();
 
     auto skybox = std::make_unique<Skybox>(cubeMapTexture, skyboxCube);
 
     scene->SetSkyBox(std::move(skybox));
+
+    // Floor wood
+
+    auto woodTexture = std::make_shared<Texture>();
+    woodTexture->LoadImageFromFile("textures/wood.png");
+    auto woodMaterial = std::make_shared<Material>("woodMaterial");
+    woodMaterial->SetShader(shaderBackPack.get());
+    woodMaterial->SetProperty(MaterialPropertyEnum::Diffuse, woodTexture);
+    auto floorQuad = BasicShapesMeshGenerator::CreateQuad(woodMaterial, verticesShaderLayout);
+    auto floorRenderInfo = std::make_unique<ModelRenderInfo>(floorQuad);
+
+    auto floorEntity = std::make_unique<Entity>();
+    floorEntity->SetModelRenderInfo(std::move(floorRenderInfo));
+    floorEntity->SetLocalRot(glm::vec3(-90.0f, 0.0f, 0.0f));
+    floorEntity->SetLocalPos(glm::vec3(0.0f, -3.0f, 0.0f));
+    floorEntity->SetLocalScale(glm::vec3(10.0f));
+
+    scene->AddEntity(std::move(floorEntity));
+
+    m_renderer->SetScene(scene.get());
+
+    auto secondCamEntity = std::make_unique<Entity>();
+    secondCamEntity->SetName("Second cameraaaaa :D");
+    secondCamEntity->AddComponent(std::move(std::make_unique<Camera>()));
+    scene->AddEntity(std::move(secondCamEntity));
 
     m_scene = std::move(scene);
 }
@@ -480,8 +600,10 @@ double Engine::GetTime()
 
 void Engine::GameLoop()
 {
-    m_editor = std::make_unique<Editor>(this);
     m_renderer->SetScene(m_scene.get());
+
+    m_editor = std::make_unique<Editor>(this);
+
     while (!m_window->WindowShouldClose())
     {
         m_window->PollEvents();
@@ -491,7 +613,6 @@ void Engine::GameLoop()
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
         ImGui::ShowDemoWindow();
-        m_editor->Render();
 
 
         m_currFrameTime = m_window->GetTime();
@@ -506,20 +627,28 @@ void Engine::GameLoop()
             entity->Update(m_deltaTime);
         }
 
-        if (!ImGUiWantsCaptureKeyboard() && m_processInput)
+        if (m_processInput)
         {
             cameraActive->ProcessMovement(m_window->GetGLFWWindow(), m_deltaTime);
         }
 
         m_renderer->RenderScene();
 
-
+        glEnable(GL_FRAMEBUFFER_SRGB);
+        m_editor->Render();
         {
             ZoneScopedN("RenderGui")
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         }
-
+        glDisable(GL_FRAMEBUFFER_SRGB);
+        if (ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
+        {
+            GLFWwindow* backup_current_context = glfwGetCurrentContext();
+            ImGui::UpdatePlatformWindows();
+            ImGui::RenderPlatformWindowsDefault();
+            glfwMakeContextCurrent(backup_current_context);
+        }
 
         {
             ZoneScopedN("SwapBuffers");
@@ -533,17 +662,25 @@ void Engine::GameLoop()
 
 void Engine::OnMouseMovement(double xpos, double ypos)
 {
-    if (!ImGUiWantsCaptureMouse() && m_processInput)
+    if (m_processInput)
     {
         m_mouseHandler->NotifyMouseMovement(xpos, ypos);
+    }
+    else
+    {
+        m_mouseHandler->SetWasStatic(true);
     }
 }
 
 void Engine::OnMouseScroll(double xpos, double ypos) const
 {
-    if (!ImGUiWantsCaptureMouse() && m_processInput)
+    if (m_processInput)
     {
         m_mouseHandler->NotifyMouseScroll(xpos, ypos);
+    }
+    else
+    {
+        m_mouseHandler->SetWasStatic(true);
     }
 }
 
@@ -552,6 +689,29 @@ MouseHandler* Engine::GetMouseHandler()
 {
     return Engine::engine->m_mouseHandler.get();
 }
+
+void Engine::CheckProcessSceneViewInput(bool cursorInSceneViewport)
+{
+    if (m_startedProcessingInput)
+    {
+        m_processInput = m_window->GetButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+        m_window->DisableCursor(m_processInput);
+    }
+    else
+    {
+        m_processInput = cursorInSceneViewport && m_window->GetButtonPressed(GLFW_MOUSE_BUTTON_RIGHT);
+        m_startedProcessingInput = m_processInput;
+        m_window->DisableCursor(m_processInput);
+    }
+}
+
+
+void Engine::SetCameraSpeed(float speed)
+{
+    m_scene->GetActiveCamera()->GetComponent<Camera>()->SetMovementSpeed(speed);
+}
+
+float Engine::GetCameraSpeed() { return m_scene->GetActiveCamera()->GetComponent<Camera>()->GetSpeed(); }
 
 bool Engine::ImGUiWantsCaptureMouse() const
 {

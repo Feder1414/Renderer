@@ -19,7 +19,7 @@ void Texture::LoadImage(std::string filePath)
         m_numberChannels == 4;
     if (data)
     {
-        GenerateTextureFromImage(data, hasAlphaChannel);
+        GenerateTextureFromRawImage(data, hasAlphaChannel);
     }
     else
     {
@@ -29,7 +29,7 @@ void Texture::LoadImage(std::string filePath)
     stbi_image_free(data);
 }
 
-void Texture::GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel)
+void Texture::GenerateTextureFromRawImage(const unsigned char* data, bool hasAlphaChannel)
 {
     if (!textureSlotsInitialized)
     {

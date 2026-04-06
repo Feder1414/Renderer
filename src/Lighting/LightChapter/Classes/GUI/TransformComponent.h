@@ -7,10 +7,10 @@
 #include "IWidget.h"
 
 
-class TransformComponent : public IWidget
-{
-
-};
+// class TransformComponent : public IWidget
+// {
+//
+// };
 
 
 #endif //GRAFICOS_TRANSFORMCOMPONENT_H

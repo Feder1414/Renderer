@@ -22,6 +22,7 @@ void Window::Initialize(Engine* engine)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    glfwWindowHint(GLFW_SRGB_CAPABLE, GLFW_TRUE);
     m_glfwWindow = glfwCreateWindow(m_width, m_height, "Window", NULL, NULL);
     if (m_glfwWindow == NULL)
     {
@@ -31,7 +32,6 @@ void Window::Initialize(Engine* engine)
     }
     glfwMakeContextCurrent(m_glfwWindow);
     glfwSwapInterval(0);
-
 
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
@@ -51,7 +51,6 @@ void Window::Initialize(Engine* engine)
 }
 
 
-
 void Window::OnErrorWindow(int error, const char* description)
 {
     std::cout << std::format("Error creating glfw window {}", description) << std::endl;
@@ -67,8 +66,9 @@ void Window::ProcessInput()
     auto tabCurrPressed = glfwGetKey(m_glfwWindow, GLFW_KEY_TAB) == GLFW_PRESS;
     if (tabCurrPressed && !m_tabPrevPressed)
     {
-        auto cursorMode = m_cursorDisabled ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
         m_cursorDisabled = !m_cursorDisabled;
+        auto cursorMode = m_cursorDisabled ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
+
         glfwSetInputMode(m_glfwWindow, GLFW_CURSOR, cursorMode);
     }
     m_tabPrevPressed = tabCurrPressed;
@@ -76,9 +76,7 @@ void Window::ProcessInput()
     auto homeCurrPresed = glfwGetKey(m_glfwWindow, GLFW_KEY_HOME) == GLFW_PRESS;
     if (homeCurrPresed && !m_homePrevPressed)
     {
-
         m_engine->ToggleProcessInput();
-
     }
     m_homePrevPressed = homeCurrPresed;
 }
@@ -121,4 +119,21 @@ void Window::OnMouseScroll(GLFWwindow* glfwWindow, double xpos, double ypos)
 {
     auto window = static_cast<Window*>(glfwGetWindowUserPointer(glfwWindow));
     window->m_OnMouseScroll.Notify(xpos, ypos);
+}
+
+void Window::DisableCursor(bool disable)
+{
+    auto cursorMode = disable ? GLFW_CURSOR_DISABLED : GLFW_CURSOR_NORMAL;
+
+    glfwSetInputMode(m_glfwWindow, GLFW_CURSOR, cursorMode);
+}
+
+bool Window::GetButtonPressed(int key) const
+{
+    return glfwGetMouseButton(m_glfwWindow, key) == GLFW_PRESS;
+}
+
+GLFWwindow* Window::GetCurrentContext() const
+{
+    return glfwGetCurrentContext();
 }

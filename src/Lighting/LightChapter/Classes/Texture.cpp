@@ -10,6 +10,8 @@
 #include "stb_image.h"
 #include <glad/glad.h>
 
+#include "gtc/type_ptr.inl"
+
 
 namespace
 {
@@ -19,6 +21,7 @@ namespace
         {
         case TextureFormat::RGBA: return GL_RGBA;
         case TextureFormat::RGB: return GL_RGB;
+        case TextureFormat::DEPTH: return GL_DEPTH_COMPONENT;
         default: throw std::exception("Invalid Texture format enum");
         }
     }
@@ -30,6 +33,11 @@ namespace
         {
         case TextureInternalFormat::RGB_8: return GL_RGB8;
         case TextureInternalFormat::RGBA_8: return GL_RGBA8;
+        case TextureInternalFormat::SRGB8: return GL_SRGB8;
+        case TextureInternalFormat::SRGB8_A8: return GL_SRGB8;
+        case TextureInternalFormat::DEPTH16: return GL_DEPTH_COMPONENT16;
+        case TextureInternalFormat::DEPTH24: return GL_DEPTH_COMPONENT24;
+        case TextureInternalFormat::DEPTH32F: return GL_DEPTH_COMPONENT32F;
         default: throw std::exception("Invalid texture internal format enum");
         }
     }
@@ -62,6 +70,11 @@ Texture::Texture(const TextureDesc& texDesc)
 {
     m_texDesc = texDesc;
     m_texDesc.mipLevels = std::max(1, m_texDesc.mipLevels);
+    if (m_texDesc.texType == TextureType::Texture_2D_Multisample)
+    {
+        CreateMultisampledTexFromTexDesc();
+        return;
+    }
     CreateTextureFromTexDesc();
 }
 
@@ -74,6 +87,10 @@ void Texture::CreateTextureFromTexDesc()
 
     glTextureParameteri(m_texture, GL_TEXTURE_WRAP_S, uWrapping);
     glTextureParameteri(m_texture, GL_TEXTURE_WRAP_T, vWrapping);
+    if (m_texDesc.uWrapping == TextureWrapping::ClampToBorder || m_texDesc.vWrapping == TextureWrapping::ClampToBorder)
+    {
+        glTextureParameterfv(m_texture, GL_TEXTURE_BORDER_COLOR, glm::value_ptr(m_texDesc.borderColor));
+    }
 
     auto minFilter = TexFilterToGlFilter(m_texDesc.minFilter);
     glTextureParameteri(m_texture, GL_TEXTURE_MIN_FILTER, minFilter);
@@ -98,18 +115,32 @@ void Texture::CreateTextureFromTexDesc()
     glGenerateTextureMipmap(m_texture);
 }
 
-void Texture::LoadImageFromFile(const std::string& filePath, const bool flipY)
+void Texture::CreateMultisampledTexFromTexDesc()
+{
+    glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &m_texture);
+    glTextureStorage2DMultisample(m_texture, m_texDesc.amountSamples, TexIntFormatToGlFormat(m_texDesc.texIntFormat),
+                                  m_texDesc.width, m_texDesc.height, GL_TRUE);
+}
+
+void Texture::LoadImageFromFile(const std::string& filePath, const bool flipY, bool isSRGB)
 {
     m_filePath = filePath;
     stbi_set_flip_vertically_on_load(flipY);
     unsigned char* data = stbi_load(filePath.c_str(), &m_texDesc.width, &m_texDesc.height, &m_texDesc.numberChannels,
                                     0);
     const bool hasAlphaChannel = m_texDesc.numberChannels == 4;
+
     m_texDesc.texFormat = hasAlphaChannel ? TextureFormat::RGBA : TextureFormat::RGB;
     m_texDesc.texIntFormat = hasAlphaChannel ? TextureInternalFormat::RGBA_8 : TextureInternalFormat::RGB_8;
+    if (isSRGB)
+    {
+        m_texDesc.texIntFormat = hasAlphaChannel ? TextureInternalFormat::SRGB8_A8 : TextureInternalFormat::SRGB8;
+    }
+
+
     if (data)
     {
-        GenerateTextureFromImage(data, hasAlphaChannel);
+        GenerateTextureFromRawImage(data);
     }
     else
     {
@@ -119,7 +150,34 @@ void Texture::LoadImageFromFile(const std::string& filePath, const bool flipY)
     stbi_image_free(data);
 }
 
-void Texture::GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel)
+void Texture::LoadImageRaw(const std::string& filePath, int len, const unsigned char* imageCompressed, const bool flipY,
+                           bool isSRGB)
+{
+    m_filePath = filePath;
+
+    stbi_set_flip_vertically_on_load(flipY);
+    unsigned char* data = stbi_load_from_memory(imageCompressed, len, &m_texDesc.width, &m_texDesc.height,
+                                                &m_texDesc.numberChannels, 0);
+
+    const bool hasAlphaChannel = m_texDesc.numberChannels == 4;
+    m_texDesc.texFormat = hasAlphaChannel ? TextureFormat::RGBA : TextureFormat::RGB;
+    m_texDesc.texIntFormat = hasAlphaChannel ? TextureInternalFormat::RGBA_8 : TextureInternalFormat::RGB_8;
+    if (isSRGB)
+    {
+        m_texDesc.texIntFormat = hasAlphaChannel ? TextureInternalFormat::SRGB8_A8 : TextureInternalFormat::SRGB8;
+    }
+
+    if (data)
+    {
+        GenerateTextureFromRawImage(data);
+    }
+    else
+    {
+        std::cout << "Failed to load the texture from filepath " + m_filePath;
+    }
+}
+
+void Texture::GenerateTextureFromRawImage(const unsigned char* data)
 {
     std::cout << "Texture with id: " << m_texture << " loaded " << std::endl;
 
@@ -143,16 +201,16 @@ void Texture::GenerateTextureFromImage(const unsigned char* data, bool hasAlphaC
     m_texDesc.mipLevels = mipLevels;
 
 
-    GLenum fmt = hasAlphaChannel ? GL_RGBA : GL_RGB;
-
-    glTextureStorage2D(m_texture, mipLevels, hasAlphaChannel ? GL_RGBA8 : GL_RGB8, m_texDesc.width, m_texDesc.height);
-    glTextureSubImage2D(m_texture, 0, 0, 0, m_texDesc.width, m_texDesc.height, fmt, GL_UNSIGNED_BYTE,
+    glTextureStorage2D(m_texture, mipLevels, TexIntFormatToGlFormat(m_texDesc.texIntFormat), m_texDesc.width,
+                       m_texDesc.height);
+    glTextureSubImage2D(m_texture, 0, 0, 0, m_texDesc.width, m_texDesc.height, TexFormatToGlFormat(m_texDesc.texFormat),
+                        GL_UNSIGNED_BYTE,
                         data);
     glGenerateTextureMipmap(m_texture);
 }
 
 void Texture::LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePath,
-                                  const std::optional<TextureDesc>& texDesc)
+                                  const std::optional<TextureDesc>& texDesc, bool isSrgb)
 {
     if (texDesc.has_value())
     {
@@ -180,7 +238,7 @@ void Texture::LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePat
             m_texDesc.height = height;
             m_texDesc.width = width;
             m_texDesc.texFormat = DetermineTextureFormat(hasAlphaChannel);
-            m_texDesc.texIntFormat = DetermineTextureIntFormat(hasAlphaChannel);
+            m_texDesc.texIntFormat = DetermineTextureIntFormat(hasAlphaChannel, isSrgb);
             loadedTexDesc = true;
             glTextureStorage2D(m_texture, mipLevels, TexIntFormatToGlFormat(m_texDesc.texIntFormat), m_texDesc.width,
                                m_texDesc.height);
@@ -193,7 +251,6 @@ void Texture::LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePat
         glTextureParameteri(m_texture, GL_TEXTURE_WRAP_T, TexWrapToGlWrap(m_texDesc.vWrapping));
         glTextureParameteri(m_texture, GL_TEXTURE_MIN_FILTER, TexFilterToGlFilter(m_texDesc.minFilter));
         glTextureParameteri(m_texture, GL_TEXTURE_MAG_FILTER, TexFilterToGlFilter(m_texDesc.magFilter));
-
     }
 }
 
@@ -219,6 +276,15 @@ void Texture::ResizeTexture(int width, int height)
 
         CreateTextureFromTexDesc();
     }
+    if (m_texDesc.texType == TextureType::Texture_2D_Multisample)
+    {
+        m_texDesc.width = width;
+        m_texDesc.height = height;
+
+        glDeleteTextures(1, &m_texture);
+
+        CreateMultisampledTexFromTexDesc();
+    }
 }
 
 
@@ -227,7 +293,11 @@ TextureFormat Texture::DetermineTextureFormat(bool hasAlphaChannel)
     return hasAlphaChannel ? TextureFormat::RGBA : TextureFormat::RGB;
 }
 
-TextureInternalFormat Texture::DetermineTextureIntFormat(bool hasAlphaChannel)
+TextureInternalFormat Texture::DetermineTextureIntFormat(bool hasAlphaChannel, bool isSRGB)
 {
-    return hasAlphaChannel ? TextureInternalFormat::RGBA_8 : TextureInternalFormat::RGB_8;;
+    if (isSRGB)
+    {
+        return hasAlphaChannel ? TextureInternalFormat::SRGB8_A8 : TextureInternalFormat::SRGB8;
+    }
+    return hasAlphaChannel ? TextureInternalFormat::RGBA_8 : TextureInternalFormat::RGB_8;
 }

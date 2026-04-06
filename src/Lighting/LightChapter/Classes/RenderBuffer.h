@@ -15,9 +15,17 @@ enum class RenderBufferInternalFormat
     STENCIL_8
 };
 
+enum class RenderBufferType
+{
+    Normal,
+    Multisampled
+};
+
 struct RenderBufferDesc
 {
     RenderBufferInternalFormat intFormat;
+    RenderBufferType renderBufferType = RenderBufferType::Normal;
+    unsigned int amountSamples = 4;
     int width, height;
 };
 
@@ -28,6 +36,8 @@ public:
     RenderBuffer(const RenderBufferDesc& renderBufferDesc);
 
     void ResizeRenderBuffer(int width, int height);
+
+    const RenderBufferDesc& GetDesc() const { return m_renderBufferDesc; }
 
 private:
     unsigned int m_renderBuffer;

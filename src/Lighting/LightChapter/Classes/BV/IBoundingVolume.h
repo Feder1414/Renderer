@@ -14,8 +14,8 @@ class IBoundingVolume
 {
 public:
     virtual ~IBoundingVolume() = default;
-    virtual bool IsOnFrustum(const Frustum& frustum) = 0;
-    virtual bool IsOnForwardPlane(const Plane& plane) = 0;
+    virtual bool IsOnFrustum(const Frustum& frustum) const = 0;
+    virtual bool IsOnForwardPlane(const Plane& plane) const = 0;
     virtual std::unique_ptr<IBoundingVolume> CalculateWorldBB(Entity* entity) = 0;
 };
 

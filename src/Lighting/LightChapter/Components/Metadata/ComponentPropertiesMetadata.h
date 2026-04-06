@@ -6,6 +6,13 @@
 #define GRAFICOS_COMPONENTWITHPROPERTIES_H
 #include "ComponentProperty.h"
 
+
+inline size_t GetUniqueForComponentId()
+{
+    static size_t currId = 0;
+    return currId++;
+}
+
 template <class derived>
 class ComponentPropertiesMetadata
 {
@@ -26,6 +33,12 @@ public:
     {
         static std::string componentName = "NoComponentNameSet";
         return componentName;
+    }
+
+    static size_t GetComponentMetadataId()
+    {
+        static size_t GetUniqueId = GetUniqueForComponentId();
+        return GetUniqueId;
     }
 };
 

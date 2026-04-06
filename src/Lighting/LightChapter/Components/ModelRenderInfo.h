@@ -10,6 +10,7 @@
 #include "IComponent.h"
 #include "../Classes/Material.h"
 #include "../Classes/Mesh.h"
+#include "Metadata/ComponentPropertiesMetadata.h"
 
 
 class Entity;
@@ -31,7 +32,7 @@ struct sModelRenderInfo
     bool renderMany = false;
 };
 
-class ModelRenderInfo : public IComponent
+class ModelRenderInfo : public IComponent, ComponentPropertiesMetadata<ModelRenderInfo>
 {
 private:
     ObjectType m_objectType = ObjectType::Dynamic;
@@ -43,10 +44,12 @@ private:
     std::unordered_map<std::string, UniformValue> uniformValuesInstances;
     AABB m_worldBB = AABB(glm::vec3(0.0f), glm::vec3(0.0f));
 
-
 public:
     std::unique_ptr<IComponent> Clone();
-
+    size_t GetComponentId() const override
+    {
+        return GetComponentMetadataId();
+    };
 
     const std::unordered_map<std::string, UniformValue>& GetUniformValuesInstances() const
     {

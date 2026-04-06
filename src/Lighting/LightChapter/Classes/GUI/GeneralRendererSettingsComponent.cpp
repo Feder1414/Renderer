@@ -11,9 +11,6 @@
 
 namespace
 {
-    std::vector<std::string> faceCullingNames = {ENUM_FACE_CULLING(X)};
-    std::vector<std::string> postProcessEffectNames = {ENUM_FACE_POST_PROCESS_EFFECT(X)};
-
     int GetSelectedIndexEnum(int enumVal, const std::vector<std::string>& enumStringVal)
     {
         int selectedIndex = 0;
@@ -36,7 +33,9 @@ void GeneralRendererSettingsComponent::Render()
     {
         return;
     }
-    if (!ImGui::Begin("General renderer settings"))
+    // ReSharper disable once CppDFAUnreachableCode
+
+    if (!ImGui::Begin(m_windowName.c_str()))
     {
         ImGui::End();
         return;
@@ -60,6 +59,7 @@ void GeneralRendererSettingsComponent::Render()
         }
 
         FaceCulling faceCulling = m_renderer->GetFaceCulling();
+        const auto& faceCullingNames = m_renderer->GetFaceCullingNames();
 
 
         int faceCullingIndexSelected = GetSelectedIndexEnum(static_cast<int>(faceCulling), faceCullingNames);
@@ -82,6 +82,7 @@ void GeneralRendererSettingsComponent::Render()
         }
 
         PostProcessEffect postProcessEffect = m_renderer->GetPostProcessEffect();
+        auto postProcessEffectNames = m_renderer->GetPostProcessEffectNames();
 
         auto postProcessIndexSelected = GetSelectedIndexEnum(static_cast<int>(postProcessEffect),
                                                              postProcessEffectNames);
@@ -105,8 +106,54 @@ void GeneralRendererSettingsComponent::Render()
         }
 
 
+        auto msaaNames = m_renderer->GetMSAANames();
+        auto currMSAAMode = m_renderer->GetCurrMsaaMode();
+
+        bool useMSAA = m_renderer->GetUsingMSAA();
+        if (ImGui::Checkbox("Use MSAA", &useMSAA))
+        {
+            m_renderer->SetUsingMSAA(useMSAA);
+        }
+
+        if (ImGui::BeginCombo("Antialiasing MSAA", msaaNames[static_cast<int>(currMSAAMode)].c_str(), 0))
+        {
+            for (int i = 0; i < msaaNames.size(); i++)
+            {
+                const bool isSelected = i == static_cast<int>(currMSAAMode);
+                if (ImGui::Selectable(msaaNames[i].c_str(), isSelected))
+                {
+                    m_renderer->SetMSAAMode(static_cast<MSAA>(i));
+                }
+                if (isSelected)
+                {
+                    ImGui::SetItemDefaultFocus();
+                }
+            }
+
+            ImGui::EndCombo();
+        }
+
+        bool usingGammaCorrection = m_renderer->GetUsingGammaCorrection();
+        if (ImGui::Checkbox("Use gamma correction", &usingGammaCorrection))
+        {
+            m_renderer->SetUsingGammaCorrection(usingGammaCorrection);
+        }
+
+        if (ImGui::Button("See shadow map"))
+        {
+            m_seeShadowMap = !m_seeShadowMap;
+            m_renderer->SetDebugShadowPass(m_seeShadowMap);
+        }
+
+        if (m_seeShadowMap)
+        {
+            m_shadowMapViewer->Render();
+        }
+
+
         //
     }
+
 
     ImGui::EndChild();
 

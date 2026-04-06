@@ -88,6 +88,17 @@ add_executable(LightChapter main.cpp
         Classes/Skybox.h
         Classes/Rendering/Buffer.cpp
         Classes/Rendering/Buffer.h
+        Classes/EnumUtils.h
+        Classes/ViewPort.cpp
+        Classes/ViewPort.h
+        Classes/GUI/SceneView.cpp
+        Classes/GUI/SceneView.h
+        Classes/GUI/ViewportWidget.cpp
+        Classes/GUI/ViewportWidget.h
+        Classes/GUI/ShadowMapViewer.cpp
+        Classes/GUI/ShadowMapViewer.h
+        Classes/OBB.cpp
+        Classes/OBB.h
 
 )
 
@@ -105,7 +116,7 @@ target_link_libraries(LightChapter PRIVATE
         OpenGL::GL
         uuid
         assimp
-        imgui
+        imgui_docking
 
 )
 
@@ -115,7 +126,7 @@ target_link_libraries(LightChapter PUBLIC
 )
 
 
-target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL TRACY_ENABLE)
+target_compile_definitions(LightChapter PRIVATE GLM_ENABLE_EXPERIMENTAL TRACY_ENABLE NOMINMAX)
 
 # TRACY_ENABLE
 

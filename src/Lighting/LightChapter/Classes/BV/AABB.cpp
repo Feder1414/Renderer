@@ -9,7 +9,7 @@
 #include "Entity.h"
 #include "Frustum.h"
 
-bool AABB::IsOnFrustum(const Frustum& frustum)
+bool AABB::IsOnFrustum(const Frustum& frustum) const
 {
     if (!IsOnForwardPlane(frustum.m_down)) return false;
     if (!IsOnForwardPlane(frustum.m_top)) return false;
@@ -84,7 +84,7 @@ void AABB::TransformToWorld(Entity* entity, glm::vec3& newCenter, float& newIx, 
 };
 
 
-bool AABB::IsOnForwardPlane(const Plane& plane)
+bool AABB::IsOnForwardPlane(const Plane& plane) const
 {
     const float r = m_extents.x * std::abs(plane.m_normal.x) +
         m_extents.y * std::abs(plane.m_normal.y) + m_extents.z * std::abs(plane.m_normal.z);

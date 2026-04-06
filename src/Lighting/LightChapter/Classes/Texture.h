@@ -14,13 +14,19 @@
 enum class TextureFormat
 {
     RGBA,
-    RGB
+    RGB,
+    DEPTH
 };
 
 enum class TextureInternalFormat
 {
     RGBA_8,
-    RGB_8
+    RGB_8,
+    SRGB8,
+    SRGB8_A8,
+    DEPTH16,
+    DEPTH24,
+    DEPTH32F
 };
 
 enum class TextureWrapping
@@ -42,7 +48,8 @@ enum class TextureFilter
 enum class TextureType
 {
     Texture_2D,
-    CubeMap
+    CubeMap,
+    Texture_2D_Multisample
 };
 
 
@@ -53,13 +60,14 @@ struct TextureDesc
     int mipLevels = 1;
     TextureWrapping uWrapping = TextureWrapping::Repeat;
     TextureWrapping vWrapping = TextureWrapping::Repeat;
-    glm::vec3 borderColor = glm::vec3(0.0f);
+    glm::vec4 borderColor = glm::vec4(1.0f);
     int width;
     int height;
     int numberChannels;
     TextureFilter magFilter = TextureFilter::Linear;
     TextureFilter minFilter = TextureFilter::Linear;
     TextureType texType = TextureType::Texture_2D;
+    unsigned int amountSamples = 4;
 };
 
 class Texture
@@ -69,24 +77,28 @@ private:
     TextureDesc m_texDesc;
     unsigned int m_texture;
     std::string m_filePath;
-    void GenerateTextureFromImage(const unsigned char* data, bool hasAlphaChannel);
+    void GenerateTextureFromRawImage(const unsigned char* data);
     static void InitializeTextureSlots();
 
 public:
     explicit Texture();
     void ResizeTexture(int width, int height);
     static TextureFormat DetermineTextureFormat(bool hasAlphaChannel);
-    static TextureInternalFormat DetermineTextureIntFormat(bool hasAlphaChannel);
+    static TextureInternalFormat DetermineTextureIntFormat(bool hasAlphaChannel, bool isSRGB = false);
     Texture(const TextureDesc& texDesc);
     void CreateTextureFromTexDesc();
-    void LoadImageFromFile(const std::string& filePath, const bool flipY = true);
+    void CreateMultisampledTexFromTexDesc();
+    void LoadImageFromFile(const std::string& filePath, const bool flipY = true, bool isSrgb = false);
+    void LoadImageRaw(const std::string& filePath, int len, const unsigned char* imageCompressed, bool flipY = true,
+                      bool isSrgb = false);
     void LoadCubeMapFromFile(const std::array<std::string, 6>& facesFilePath,
-                             const std::optional<TextureDesc>& texDesc = std::nullopt);
+                             const std::optional<TextureDesc>& texDesc = std::nullopt, bool isSrgb = false);
     int GetTextureSlot() const { return m_textureSlot; };
     unsigned int GetTextureId() const { return m_texture; }
     void SetTextureSlot(unsigned int textureSlot) { m_textureSlot = textureSlot; }
     std::string GetFilePath() { return m_filePath; }
     void BindTexture() const;
+    const TextureDesc& GetTextureDesc() const { return m_texDesc; }
 
     TextureType GetTextureType() { return m_texDesc.texType; }
 };

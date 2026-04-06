@@ -48,6 +48,8 @@ std::string Material::MaterialPropertyNameToString(MaterialPropertyEnum material
     case MaterialPropertyEnum::Specular: return "materialSpecular";
     case MaterialPropertyEnum::Shininess: return "materialShininess";
     case MaterialPropertyEnum::Transparency: return "transparency";
+    case MaterialPropertyEnum::HasSpecularTexture: return "hasSpecularTexture";
+    case MaterialPropertyEnum::SpecularMaterialSolid: return "specularMaterialSolid";
     default: return "Unknown property";
     }
 }
