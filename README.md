@@ -36,8 +36,11 @@ Real-time graphics renderer/engine developed in C++ using OpenGL. It partially i
 ## Build
 
 ```bash
-git clone <repo>
+git clone https://github.com/Feder1414/Renderer.git
 cd RenderingEngine
 
 cmake -B build
 cmake --build build
+```
+
+The main development target is `src/Lighting/LightChapter`. Other targets are kept for reference and contain older experiments or previous engine iterations.
